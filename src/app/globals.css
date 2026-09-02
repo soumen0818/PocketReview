@@ -13,6 +13,14 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Truncate a heading to two lines without pulling in a plugin. */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* Markdown inside PR card description */
 .prose-card {
   font-size: 0.875rem;

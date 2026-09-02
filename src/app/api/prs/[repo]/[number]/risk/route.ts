@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { collectSignals } from "@/lib/signals/collect";
-import { signalConfidence } from "@/lib/signals/types";
-import { assessRisk, baselineScore } from "@/lib/engines/risk-engine";
+import { assessRisk } from "@/lib/engines/risk-engine";
 import { loadConfig } from "@/lib/config";
 
 /**
- * GET /api/prs/:repo/:number/signals
+ * GET /api/prs/:repo/:number/risk
  *
- * Returns the raw measured signals for one PR — the "show your working" view.
- * Everything the risk engine reads is visible here, which is what makes a
- * score auditable rather than assertable.
+ * Returns the full risk assessment for one PR, including the per-dimension
+ * contribution breakdown that makes the score auditable.
+ *
+ * Deterministic and fast: no LLM is involved at any point.
  *
  * `repo` is URL-encoded "owner%2Fname".
  */
@@ -41,14 +41,16 @@ export async function GET(
     const signals = await collectSignals(repo, number, {
       rules: config.rules,
     });
+    const risk = assessRisk(signals, { thresholds: config.thresholds });
 
-    // The baseline is returned alongside the real score so the difference is
-    // inspectable rather than merely asserted.
     return NextResponse.json({
-      signals,
-      confidence: signalConfidence(signals.availability),
-      risk: assessRisk(signals, { thresholds: config.thresholds }),
-      baseline: baselineScore(signals),
+      repo,
+      number,
+      title: signals.title,
+      author: signals.author,
+      url: signals.url,
+      headSha: signals.headSha,
+      risk,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

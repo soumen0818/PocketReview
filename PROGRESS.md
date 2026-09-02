@@ -11,9 +11,9 @@ Single source of truth for what is built, what is pending, and what was delibera
 ```
   Phase 0  Foundation & branding      ██████████  100%   ✅ done
   Phase 1  Signal Layer               ██████████  100%   ✅ done
-  Phase 2  Risk Engine                ░░░░░░░░░░    0%   ⬅ NEXT
-  Phase 3  Deck & risk UI             ░░░░░░░░░░    0%
-  Phase 4  Priority & effort          ░░░░░░░░░░    0%
+  Phase 2  Risk Engine                ██████████  100%   ✅ done
+  Phase 3  Deck & risk UI             ██████████  100%   ✅ done
+  Phase 4  Priority & effort          ░░░░░░░░░░    0%   ⬅ NEXT
   Phase 5  Review plan                ░░░░░░░░░░    0%
   Phase 6  Explanation layer          ░░░░░░░░░░    0%
   Phase 7  Reviewer engine            ░░░░░░░░░░    0%   ⚠ first to cut
@@ -21,7 +21,19 @@ Single source of truth for what is built, what is pending, and what was delibera
   Phase 9  Hardening & demo           ░░░░░░░░░░    0%
 ```
 
-**Health:** 29/29 tests pass · typecheck clean · production build succeeds
+**Health:** 74/74 tests pass · typecheck clean · production build succeeds
+
+### The demo table — measured, reproducible
+
+| Scenario | Lines | PocketReview | Lines-changed baseline |
+|---|---:|---:|---:|
+| One-line auth change | 2 | **55** · high | 0 |
+| 4,000-line lockfile | 5,000 | **0** · low | 100 |
+| Docs typo fix | 10 | **0** · low | 1 |
+| Auth + payments rewrite | 660 | **89** · critical | 66 |
+
+The baseline ranks the lockfile at 100 and the auth change at 0 — exactly inverted.
+Reproduce: `npm test` (see `tests/risk-engine.test.mjs`).
 
 ### Never cut — these three *are* the project
 
@@ -101,60 +113,128 @@ Measurement only. No judgement, no scores.
 
 ---
 
-## Phase 2 — Risk Engine ⬅ NEXT · 🔴 never cut
+## Phase 2 — Risk Engine ✅ · 🔴 never cut
 
 **Goal:** every PR carries an explainable 0–100 score whose contributions sum exactly to the total.
 
-**Done when:** the one-line auth change scores high, the 4,000-line lockfile scores near zero, and the breakdown is inspectable.
+**Done when:** the one-line auth change scores high, the 4,000-line lockfile scores near zero, and the breakdown is inspectable. — **met, see the demo table above.**
 
 ### Scaffolding
-- [ ] `lib/engines/types.ts` — `RiskAssessment`, `DimensionResult`, `Modifier`
-- [ ] `lib/engines/risk-engine.ts` — orchestrator, weighted sum, clamping
+- [x] [engines/types.ts](src/lib/engines/types.ts) — `RiskAssessment`, `DimensionResult`, `Modifier`
+- [x] [engines/risk-engine.ts](src/lib/engines/risk-engine.ts) — orchestrator, weighted sum, floors, clamping
+- [x] Load-time assertion that weights sum to 1.00
 
 ### The seven dimensions
-- [ ] `dimensions/blast-radius.ts` (0.20) — file spread, volume, entropy, cross-cutting
-- [ ] `dimensions/domain-criticality.ts` (0.20) — **must be size-independent**
-- [ ] `dimensions/test-posture.ts` (0.15) — ratio tiers; removal forces 1.0
-- [ ] `dimensions/historical-instability.ts` (0.15) — churn, reverts, incidents
-- [ ] `dimensions/change-complexity.ts` (0.12) — control flow, nesting, deletion-heavy
-- [ ] `dimensions/dependencies.ts` (0.10) — new deps, major bumps, lockfile-only
-- [ ] `dimensions/author-provenance.ts` (0.08) — first-timer, revert rate, AI hints
+- [x] [blast-radius.ts](src/lib/engines/dimensions/blast-radius.ts) (0.20) — spread, volume, entropy, cross-cutting
+- [x] [domain-criticality.ts](src/lib/engines/dimensions/domain-criticality.ts) (0.20) — **size-independent, verified by test**
+- [x] [test-posture.ts](src/lib/engines/dimensions/test-posture.ts) (0.15) — ratio tiers; removal forces 1.0
+- [x] [historical-instability.ts](src/lib/engines/dimensions/historical-instability.ts) (0.15) — churn, reverts, incidents
+- [x] [change-complexity.ts](src/lib/engines/dimensions/change-complexity.ts) (0.12) — control flow, nesting, deletion-heavy
+- [x] [dependencies.ts](src/lib/engines/dimensions/dependencies.ts) (0.10) — new deps, lockfile-only near-zero
+- [x] [author-provenance.ts](src/lib/engines/dimensions/author-provenance.ts) (0.08) — first-timer, reverts, AI hints
 
 ### Modifiers — bounded, ±30 total
-- [ ] CI failing `+8` · already approved `−15` · draft `−20`
-- [ ] Hotfix branch `+10` · generated-only `−25` · docs-only `−30`
-- [ ] Assert the cap holds and the result clamps to `[0,100]`
+- [x] CI failing `+8` · hotfix `+10` · urgent label `+6`
+- [x] Approved `−15` · draft `−20` · generated-only `−25` · docs-only `−30`
+- [x] Aggregate cap enforced and tested
+
+### Floors — added during implementation
+- [x] Critical path + no tests → floor 55
+- [x] Critical path → floor 40
+- [x] Tests removed → floor 35
+- [x] Floors can only raise, never lower; suppressed for drafts and approved PRs
+- [x] Floor and its reason surfaced in `RiskAssessment` and `topReasons`
 
 ### Output
-- [ ] Confidence from `SignalAvailability`
-- [ ] Level thresholds from config (low/medium/high/critical)
-- [ ] `topReasons` ranked by contribution
-- [ ] Contributions verifiably sum to the score
+- [x] Confidence from `SignalAvailability`; `lowConfidence` flag below 0.6
+- [x] Level thresholds from config
+- [x] `topReasons` ranked by contribution
+- [x] Contributions verifiably sum to `baseScore`
+- [x] `baselineScore()` — the lines-changed scorer the eval harness beats
 
-### Tests
-- [ ] **One-line auth change scores HIGH** ← demo centrepiece
-- [ ] **4,000-line lockfile scores LOW** ← the classic false positive
-- [ ] Contributions sum to the total (property test)
-- [ ] Score always within `[0,100]` across random inputs
-- [ ] Docs-only PR lands in LOW
-- [ ] Removed tests force the test dimension to maximum
-- [ ] Deterministic — same input, same score, 100 runs
-- [ ] No single dimension can exceed its weight cap
+### Endpoints
+- [x] `GET /api/prs/:repo/:number/risk` — full assessment + breakdown
+- [x] `/signals` now returns `risk` and `baseline` alongside the measurements
+
+### Tests — 33, all passing
+- [x] **One-line auth change scores 55 (high)** ← demo centrepiece
+- [x] **4,000-line lockfile scores 0 (low)** ← the classic false positive
+- [x] Tiny auth change outranks huge lockfile; baseline gets it backwards
+- [x] Contributions sum to `baseScore`
+- [x] Score fully accounted for by base + modifiers + floor
+- [x] Floors only raise; never on drafts or approved PRs
+- [x] Deterministic across 50 runs
+- [x] No dimension exceeds its weight cap
+- [x] Modifier aggregate cap holds
+- [x] Score always in `[0,100]`, always an integer
+- [x] Criticality size-independence
+- [x] Test removal forces maximum
+- [x] Missing history → zero instability + lower confidence
+- [x] AI provenance moves the score by ≤ 4 points
+- [x] Six of seven dimensions ignore authorship entirely
+- [x] Docs-only lands in low; empty PR does not crash
 
 ---
 
-## Phase 3 — Deck & risk UI
+## Phase 3 — Deck & risk UI ✅
 
 **Goal:** the demo is visually complete and technically defensible.
 
-- [ ] `components/risk/RiskBadge.tsx` — score + level chip
-- [ ] `components/risk/RiskReasons.tsx` — ranked contributing reasons
-- [ ] `components/risk/DimensionBreakdown.tsx` — **the credibility screen**
-- [ ] Rebuild [PRCard.tsx](src/components/PRCard.tsx) as the triage card
-- [ ] Confidence indicator when `< 0.6` — "limited signals"
-- [ ] Wire risk into `/api/prs`
-- [ ] Deck renders deterministic data with zero loading state
-- [ ] Mobile layout verified at 390×844
+**Done when:** the deck ranks by score, every card shows why, and the breakdown proves the number. — **met, verified end to end in demo mode.**
+
+### Data model
+- [x] [types.ts](src/lib/types.ts) — `TriagedPR`, `TriageRecord`, `QueueSummary`
+- [x] `riskAtDecision` on every triage record — the audit trail
+- [x] [risk-display.ts](src/lib/risk-display.ts) — shared level tokens, `timeAgo`, `shortRepo`
+
+### Components
+- [x] [RiskBadge.tsx](src/components/risk/RiskBadge.tsx) — score, band, bar, confidence warning
+- [x] [RiskReasons.tsx](src/components/risk/RiskReasons.tsx) — ranked, with overflow count
+- [x] [DimensionBreakdown.tsx](src/components/risk/DimensionBreakdown.tsx) — **the credibility screen**
+- [x] [PRCard.tsx](src/components/PRCard.tsx) rebuilt as the triage card
+- [x] [QueueSummaryBar.tsx](src/components/QueueSummaryBar.tsx) — composition + progress
+- [x] [SwipeDeck.tsx](src/components/SwipeDeck.tsx) — `TriagedPR`, breakdown threaded through
+
+### The breakdown screen
+- [x] Per-dimension raw, weight, contribution, reasons, signals read
+- [x] Fill bar shows proportion of each dimension's own ceiling
+- [x] "How the score adds up" — dimensions → modifiers → floor → final
+- [x] Floor explained inline when it decided the score
+- [x] Side-by-side comparison against the lines-changed baseline
+- [x] Plain-English summary of where the two models disagree
+- [x] Signal-confidence panel with honest wording
+
+### Wiring
+- [x] `/api/prs` returns scored, ranked `TriagedPR[]` plus a `QueueSummary`
+- [x] `?signals=1` ships the full signal set for zero-round-trip audits
+- [x] [usePRs.ts](src/hooks/usePRs.ts) — queue + summary, client-side triage filter
+- [x] [useSwipeHistory.ts](src/hooks/useSwipeHistory.ts) → records `TriageAction` + score
+- [x] [page.tsx](src/app/page.tsx) — breakdown state, summary bar, triage toasts
+- [x] Deck paints from deterministic data — no loading state for triage info
+- [x] `line-clamp-2` in globals.css (no plugin needed)
+
+### Demo mode — pulled forward from Phase 9
+- [x] [demo/fixtures.ts](src/lib/demo/fixtures.ts) — 7 hand-built PRs
+- [x] `DEMO_MODE=1` swaps the **data source only** — fixtures run the real engine
+- [x] Covers: tiny-critical, huge-worthless, emergency, well-tested, trivial, low-confidence
+
+### Verification
+- [x] `DEMO_MODE=1 npm run dev` → page 200, no error overlay
+- [x] `/api/prs` returns the ranked queue with correct summary
+- [x] Low-confidence path exercised live (#156 at 50%)
+- [x] 74/74 tests · typecheck clean · production build passes
+- [ ] Mobile layout eyeballed at 390×844 — **needs a human, do this before the demo**
+
+### Tests — 12 added
+- [x] Every level has a complete, visually distinct style
+- [x] `timeAgo` at each scale; `shortRepo`
+- [x] Demo queue spans ≥ 3 levels incl. critical and low
+- [x] **Two-line auth change outranks the 5,000-line lockfile**
+- [x] Baseline ranks those two the wrong way round
+- [x] Payments rewrite tops the queue; trivial changes sink
+- [x] At least one fixture triggers the low-confidence UI
+- [x] Every card has a complete, renderable assessment
+- [x] Demo scoring deterministic across 20 runs
 
 ---
 
@@ -273,6 +353,9 @@ Things a judge may ask about. Each is a deliberate choice, not an accident.
 | 8 | Confidence reported honestly | A system hiding missing data can't be trusted about anything else. |
 | 9 | Reviewer engine is first to cut | Same name on every card reads as broken and poisons the components next to it. |
 | 10 | KPI is Recall@K, not "time saved" | Time saved needs a control group that doesn't exist. Recall@K is measurable from history that already happened. |
+| 11 | Floors added on top of the weighted sum | A weighted sum *averages*, and averaging is wrong for categorical facts. With six of seven dimensions structurally near-zero for a tiny diff, a maximally critical one-line change capped at ~35/100 — it would have been buried in the queue. A floor only ever raises, is bounded, names its reason, and doesn't distort large PRs the way reweighting would. **Found by the demo test failing at 30.** |
+| 12 | `baselineScore()` ships in the engine | The lines-changed scorer lives beside the real one so the comparison is runnable, not asserted. It is what Phase 8's headline number is measured against. |
+| 13 | Demo mode swaps the data source, never the scoring | Fixtures run through the real engine, so the offline demo shows what the scorer genuinely produces. A demo with pre-computed scores would prove nothing and would break the moment a judge asked to change an input. |
 
 ---
 
@@ -300,4 +383,4 @@ A phase is complete when:
 
 ---
 
-*Last verified: 2026-09-02 — Phase 1 complete, 29/29 tests, build passing.*
+*Last verified: 2026-09-02 — Phase 3 complete, 74/74 tests, verified live in DEMO_MODE.*

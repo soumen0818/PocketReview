@@ -3,20 +3,28 @@
 import { useRef, useState } from "react";
 import TinderCard from "react-tinder-card";
 import PRCard from "./PRCard";
-import type { PullRequest } from "@/lib/types";
+import type { TriagedPR } from "@/lib/types";
 
 interface SwipeDeckProps {
-  prs: PullRequest[];
-  onSwipeLeft: (pr: PullRequest) => void;
-  onSwipeRight: (pr: PullRequest) => void;
+  prs: TriagedPR[];
+  onSwipeLeft: (pr: TriagedPR) => void;
+  onSwipeRight: (pr: TriagedPR) => void;
+  onShowBreakdown: (pr: TriagedPR) => void;
   triggerSwipe?: { direction: "left" | "right" } | null;
   onTriggerConsumed?: () => void;
 }
 
+/**
+ * The card stack.
+ *
+ * Renders the top three PRs so the deck reads as a queue with depth rather
+ * than a single card, but only the top one is interactive.
+ */
 export default function SwipeDeck({
   prs,
   onSwipeLeft,
   onSwipeRight,
+  onShowBreakdown,
   triggerSwipe,
   onTriggerConsumed,
 }: SwipeDeckProps) {
@@ -34,7 +42,7 @@ export default function SwipeDeck({
     });
   }
 
-  function handleSwipe(direction: string, pr: PullRequest) {
+  function handleSwipe(direction: string, pr: TriagedPR) {
     if (direction === "right") onSwipeRight(pr);
     else if (direction === "left") onSwipeLeft(pr);
   }
@@ -74,7 +82,10 @@ export default function SwipeDeck({
                     swipeRequirementType="position"
                     swipeThreshold={80}
                   >
-                    <SwipeOverlayCard pr={pr} />
+                    <SwipeOverlayCard
+                      pr={pr}
+                      onShowBreakdown={() => onShowBreakdown(pr)}
+                    />
                   </TinderCard>
                 ) : (
                   <PRCard pr={pr} />
@@ -87,7 +98,19 @@ export default function SwipeDeck({
   );
 }
 
-function SwipeOverlayCard({ pr }: { pr: PullRequest }) {
+/**
+ * The top card, with directional intent shown during a drag.
+ *
+ * The overlay words are the product vocabulary: a right swipe routes the PR
+ * into the fast lane, it does not approve anything.
+ */
+function SwipeOverlayCard({
+  pr,
+  onShowBreakdown,
+}: {
+  pr: TriagedPR;
+  onShowBreakdown: () => void;
+}) {
   const startX = useRef<number | null>(null);
   const [dragDelta, setDragDelta] = useState(0);
 
@@ -114,7 +137,8 @@ function SwipeOverlayCard({ pr }: { pr: PullRequest }) {
         setDragDelta(0);
       }}
     >
-      <PRCard pr={pr} />
+      <PRCard pr={pr} onShowBreakdown={onShowBreakdown} />
+
       {dragDelta > 30 && (
         <div className="absolute inset-0 rounded-2xl border-4 border-green-400 flex items-center justify-center bg-green-50/50 pointer-events-none">
           <span className="text-green-500 font-black text-3xl -rotate-12 tracking-widest text-center leading-tight">
@@ -124,6 +148,7 @@ function SwipeOverlayCard({ pr }: { pr: PullRequest }) {
           </span>
         </div>
       )}
+
       {dragDelta < -30 && (
         <div className="absolute inset-0 rounded-2xl border-4 border-amber-400 flex items-center justify-center bg-amber-50/50 pointer-events-none">
           <span className="text-amber-500 font-black text-3xl rotate-12 tracking-widest text-center leading-tight">
