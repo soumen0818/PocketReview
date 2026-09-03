@@ -30,7 +30,8 @@ const WINDOW_DAYS = 90;
 
 /** Commit messages indicating a revert or an incident fix. */
 const REVERT_PATTERN = /\b(revert|rollback|roll back)\b/i;
-const HOTFIX_PATTERN = /\b(hotfix|hot-fix|incident|outage|urgent fix|emergency)\b/i;
+const HOTFIX_PATTERN =
+  /\b(hotfix|hot-fix|incident|outage|urgent fix|emergency)\b/i;
 
 /**
  * Collect history for a specific set of paths.
@@ -247,7 +248,10 @@ export async function buildExpertiseMatrix(
       if (!result.byAuthor[author]) result.byAuthor[author] = {};
 
       const date = commit.commit.author?.date ?? "";
-      if (date && (!result.lastTouch[author] || date > result.lastTouch[author])) {
+      if (
+        date &&
+        (!result.lastTouch[author] || date > result.lastTouch[author])
+      ) {
         result.lastTouch[author] = date;
       }
 

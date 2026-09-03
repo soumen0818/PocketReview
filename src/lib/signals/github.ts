@@ -43,6 +43,34 @@ export function github(): Octokit {
 /** Reset the cached client. Used by tests. */
 export function resetClient(): void {
   cachedClient = null;
+  cachedViewer = undefined;
+}
+
+let cachedViewer: string | null | undefined;
+
+/**
+ * Login of the account the token belongs to.
+ *
+ * Used by the priority engine to suppress the viewer's own PRs — you cannot
+ * review your own work. Cached for the process lifetime: the answer cannot
+ * change without the token changing.
+ *
+ * Returns `null` rather than throwing when the lookup fails. Own-PR
+ * suppression is a convenience, and a queue that 500s because `/user` was
+ * unreachable would be a much worse failure than a queue containing one PR
+ * the reviewer will skip.
+ */
+export async function getViewerLogin(): Promise<string | null> {
+  if (cachedViewer !== undefined) return cachedViewer;
+
+  try {
+    const { data } = await github().request("GET /user");
+    cachedViewer = data.login ?? null;
+  } catch {
+    cachedViewer = null;
+  }
+
+  return cachedViewer;
 }
 
 /**
@@ -167,10 +195,7 @@ export async function listRepoPRs(
 }
 
 /** Fetch a single PR's metadata. */
-export async function getPR(
-  repo: string,
-  number: number,
-): Promise<PRSummary> {
+export async function getPR(repo: string, number: number): Promise<PRSummary> {
   const client = github();
   const { owner, name } = splitRepo(repo);
 
@@ -194,7 +219,9 @@ export async function getPR(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     isDraft: data.draft ?? false,
-    labels: data.labels.map((l) => (typeof l === "string" ? l : l.name ?? "")),
+    labels: data.labels.map((l) =>
+      typeof l === "string" ? l : (l.name ?? ""),
+    ),
     additions: data.additions ?? 0,
     deletions: data.deletions ?? 0,
     changedFiles: data.changed_files ?? 0,
@@ -256,10 +283,7 @@ export async function getPRFiles(
  * Requests the `diff` media type, which returns the patch as plain text in a
  * single call rather than reassembling it from the files endpoint.
  */
-export async function getPRDiff(
-  repo: string,
-  number: number,
-): Promise<string> {
+export async function getPRDiff(repo: string, number: number): Promise<string> {
   const client = github();
   const { owner, name } = splitRepo(repo);
 
@@ -428,11 +452,7 @@ export async function getCodeowners(repo: string): Promise<string | null> {
   const client = github();
   const { owner, name } = splitRepo(repo);
 
-  const locations = [
-    ".github/CODEOWNERS",
-    "CODEOWNERS",
-    "docs/CODEOWNERS",
-  ];
+  const locations = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
 
   for (const path of locations) {
     try {

@@ -2,7 +2,7 @@
 
 > Corresponds to [architecture.md §16](../ARCHITECTURE.md#16-validation-strategy).
 >
-> **Status:** ✅ **74/74 passing**, verified 2026-09-03. The eval harness (§ *Validation*) is 🕐 Phase 8.
+> **Status:** ✅ **74/74 passing**, verified 2026-09-03. The eval harness (§ _Validation_) is 🕐 Phase 8.
 
 ---
 
@@ -10,10 +10,10 @@
 
 Keep these separate — conflating them is how projects end up claiming accuracy they never measured.
 
-| | Question | Answered by | Status |
-|---|---|---|---|
-| **Tests** | Does the engine do what it says? | `npm test` | ✅ 74 passing |
-| **Eval** | Is what it says *correct*? | `npm run eval` | 🕐 Phase 8 |
+|           | Question                         | Answered by    | Status        |
+| --------- | -------------------------------- | -------------- | ------------- |
+| **Tests** | Does the engine do what it says? | `npm test`     | ✅ 74 passing |
+| **Eval**  | Is what it says _correct_?       | `npm run eval` | 🕐 Phase 8    |
 
 Tests prove the arithmetic is sound, the guarantees hold, and the demo claims reproduce. They cannot prove the ranking is right — that needs ground truth from history.
 
@@ -35,12 +35,12 @@ Node's built-in runner (`node:test` + `node:assert`) via `tsx` for TS/ESM transp
 
 ## Suites
 
-| File | Tests | Covers |
-|---|---:|---|
-| [risk-engine.test.mjs](../tests/risk-engine.test.mjs) | 33 | Scoring formula, weights, modifier caps, floors, structural guarantees, demo claims |
-| [signals.test.mjs](../tests/signals.test.mjs) | 29 | Path classification, CODEOWNERS, diff parsing, patch ranking, redaction, math |
-| [demo-queue.test.mjs](../tests/demo-queue.test.mjs) | 12 | The full demo queue through the real engine |
-| [risk-display.test.mjs](../tests/risk-display.test.mjs) | — | `LEVEL_STYLES` completeness, `timeAgo`, `shortRepo` |
+| File                                                    | Tests | Covers                                                                              |
+| ------------------------------------------------------- | ----: | ----------------------------------------------------------------------------------- |
+| [risk-engine.test.mjs](../tests/risk-engine.test.mjs)   |    33 | Scoring formula, weights, modifier caps, floors, structural guarantees, demo claims |
+| [signals.test.mjs](../tests/signals.test.mjs)           |    29 | Path classification, CODEOWNERS, diff parsing, patch ranking, redaction, math       |
+| [demo-queue.test.mjs](../tests/demo-queue.test.mjs)     |    12 | The full demo queue through the real engine                                         |
+| [risk-display.test.mjs](../tests/risk-display.test.mjs) |     — | `LEVEL_STYLES` completeness, `timeAgo`, `shortRepo`                                 |
 
 ---
 
@@ -57,7 +57,7 @@ score        55  ·  high
 baseline      0            ← lines-changed model
 ```
 
-Asserts domain criticality dominates, and that the `critical-path` floor carries the score to the `high` band. *Size is not risk.*
+Asserts domain criticality dominates, and that the `critical-path` floor carries the score to the `high` band. _Size is not risk._
 
 ### 2. A 4,000-line lockfile scores low
 
@@ -68,7 +68,7 @@ score         0  ·  low
 baseline    100            ← lines-changed model maxes out
 ```
 
-Asserts generated files are excluded from size scoring. *The classic false positive.*
+Asserts generated files are excluded from size scoring. _The classic false positive._
 
 ### 3. The baseline gets both backwards
 
@@ -103,7 +103,7 @@ Patch ranking (`rankPatchesByConsequence`) originally **multiplied** criticality
 
 The fix: criticality dominates, size breaks ties within a tier. Two tests now pin it (Decision Log #6).
 
-This is the argument for testing pure functions: the bug was invisible in the UI and would have surfaced as *"the explanation talks about the wrong file."*
+This is the argument for testing pure functions: the bug was invisible in the UI and would have surfaced as _"the explanation talks about the wrong file."_
 
 ---
 
@@ -118,13 +118,15 @@ import { makeSignals, makeFile } from "./helpers/signals.mjs";
 
 // Complete, valid PRSignals with neutral defaults — override what you test.
 const signals = makeSignals({
-  files: [makeFile({
-    path: "src/auth/session.ts",
-    category: "auth",
-    categoryWeight: 1.0,
-    additions: 1,
-    deletions: 1,
-  })],
+  files: [
+    makeFile({
+      path: "src/auth/session.ts",
+      category: "auth",
+      categoryWeight: 1.0,
+      additions: 1,
+      deletions: 1,
+    }),
+  ],
   productionLinesAdded: 1,
   hasNoTests: true,
   criticalPaths: ["auth"],
@@ -152,7 +154,9 @@ Covers: tiny-critical, huge-worthless, emergency, well-tested, trivial, low-conf
 
 ```js
 test("new-dimension fires on X", () => {
-  const signals = makeSignals({ /* only what this dimension reads */ });
+  const signals = makeSignals({
+    /* only what this dimension reads */
+  });
   const output = myNewDimension.evaluate(signals);
 
   assert.ok(output.raw > 0.8);
@@ -165,27 +169,27 @@ Then re-run the structural tests — they will catch a weight-sum mistake immedi
 
 ---
 
-## What is *not* covered
+## What is _not_ covered
 
 Honesty here is the point of the section.
 
-| Gap | Why | Plan |
-|---|---|---|
-| **Component rendering** | No React test renderer installed | Manual; low value pre-demo |
-| **Mobile layout at 390×844** | Needs human eyes | ⚠️ **Before the demo** |
-| **API route handlers** | Would need Next request mocking | Logic lives in tested pure functions |
-| **Live GitHub integration** | Deliberately no network in tests | `DEMO_MODE` + manual runs |
-| **Ranking correctness** | Needs historical ground truth | 🕐 Phase 8 eval |
+| Gap                          | Why                              | Plan                                 |
+| ---------------------------- | -------------------------------- | ------------------------------------ |
+| **Component rendering**      | No React test renderer installed | Manual; low value pre-demo           |
+| **Mobile layout at 390×844** | Needs human eyes                 | ⚠️ **Before the demo**               |
+| **API route handlers**       | Would need Next request mocking  | Logic lives in tested pure functions |
+| **Live GitHub integration**  | Deliberately no network in tests | `DEMO_MODE` + manual runs            |
+| **Ranking correctness**      | Needs historical ground truth    | 🕐 Phase 8 eval                      |
 
 ---
 
 ## Validation harness 🕐 Phase 8
 
-> **Never cut.** Architecture §16. This is what turns *"we built a scoring system"* into *"our scoring system beats the naive approach by N points of recall."*
+> **Never cut.** Architecture §16. This is what turns _"we built a scoring system"_ into _"our scoring system beats the naive approach by N points of recall."_
 
 ### Reframe the claim
 
-We do **not** claim to predict bugs. We claim to **rank PRs by required human attention**. So we validate the *ranking*, not a classification.
+We do **not** claim to predict bugs. We claim to **rank PRs by required human attention**. So we validate the _ranking_, not a classification.
 
 ### Ground truth, mined automatically
 
@@ -202,12 +206,12 @@ Fully automatable from `git log` and the GitHub API — no manual labelling. `re
 
 ### Metrics
 
-| Metric | Meaning |
-|---|---|
-| **Recall@K** | Of the truly attention-worthy PRs, how many are in our top K? ← **headline** |
-| Precision@K | Of our top K, how many were justified? |
-| NDCG | Ranking quality across the whole queue |
-| **Lift vs baseline** | Versus `baselineScore()` ← **the money number** |
+| Metric               | Meaning                                                                      |
+| -------------------- | ---------------------------------------------------------------------------- |
+| **Recall@K**         | Of the truly attention-worthy PRs, how many are in our top K? ← **headline** |
+| Precision@K          | Of our top K, how many were justified?                                       |
+| NDCG                 | Ranking quality across the whole queue                                       |
+| **Lift vs baseline** | Versus `baselineScore()` ← **the money number**                              |
 
 Recall@K is the KPI rather than "time saved" because time saved needs a control group that does not exist (Decision Log #10).
 
@@ -236,7 +240,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
       - run: npm install --legacy-peer-deps
       - run: npm run typecheck
       - run: npm test
@@ -256,8 +260,8 @@ A phase is complete when:
 4. `npm run build` succeeds
 5. The phase's "done when" is demonstrably true
 
-*"Written but unverified" is `[~]`, not `[x]`.*
+_"Written but unverified" is `[~]`, not `[x]`._
 
 ---
 
-*Verified 2026-09-03 — 74/74 passing, typecheck clean, production build succeeds.*
+_Verified 2026-09-03 — 74/74 passing, typecheck clean, production build succeeds._

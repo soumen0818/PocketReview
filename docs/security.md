@@ -4,16 +4,16 @@
 >
 > **Status convention.** ✅ **Shipped** means verified against the code at the path given. 🕐 **Planned (Phase N)** means the control is designed but **not yet enforced** — do not rely on it.
 
-> **The pitch line:** *"We never let an AI approve code written by an AI. We only decide which human sees it first."*
+> **The pitch line:** _"We never let an AI approve code written by an AI. We only decide which human sees it first."_
 
 ---
 
 ## Read-only by construction ✅
 
-| Token | Scope | Purpose |
-|---|---|---|
-| `GITHUB_TOKEN` | `repo:read` | PR metadata, file lists, diffs, CI status, git history |
-| `ANTHROPIC_API_KEY` | — | Optional. Explanation layer only. |
+| Token               | Scope       | Purpose                                                |
+| ------------------- | ----------- | ------------------------------------------------------ |
+| `GITHUB_TOKEN`      | `repo:read` | PR metadata, file lists, diffs, CI status, git history |
+| `ANTHROPIC_API_KEY` | —           | Optional. Explanation layer only.                      |
 
 **No write endpoint exists.** There is no call to `pulls.merge` or `pulls.createReview` anywhere in the repository — verified by grep across `src/`. The application structurally cannot merge code or submit approvals.
 
@@ -53,7 +53,7 @@ Nothing else. Signals, scores and history stay local.
 
 `redactSecrets()` in [src/lib/signals/diff.ts](../src/lib/signals/diff.ts) scrubs known key patterns and high-entropy assignments to variables named like `password` or `secret`, replacing them with `[REDACTED:<label>]` before any diff is dispatched. Covered by a test.
 
-*Redaction is a backstop, not a licence to commit secrets.*
+_Redaction is a backstop, not a licence to commit secrets._
 
 ---
 
@@ -61,16 +61,16 @@ Nothing else. Signals, scores and history stay local.
 
 PocketReview uses no database.
 
-| What | Where it lives | Survives restart? |
-|---|---|---|
-| Config | Parsed from `.pocketreview.yml`, memoised in-process | No |
-| Diff text (chat) | In-memory `Map` in the chat route | No |
-| Triage history | Browser memory (`useSwipeHistory`) | No — lost on refresh |
-| Signals, scores | Recomputed per request | No |
+| What             | Where it lives                                       | Survives restart?    |
+| ---------------- | ---------------------------------------------------- | -------------------- |
+| Config           | Parsed from `.pocketreview.yml`, memoised in-process | No                   |
+| Diff text (chat) | In-memory `Map` in the chat route                    | No                   |
+| Triage history   | Browser memory (`useSwipeHistory`)                   | No — lost on refresh |
+| Signals, scores  | Recomputed per request                               | No                   |
 
 **Nothing is written to disk.** No signals cache, no explanation cache, no expertise matrix on disk today.
 
-> ⚠️ **Correction to a claim in earlier drafts.** Diff content *is* cached — in memory, in the chat route, keyed `repo:number`. It is not persisted to disk, but "never cached" was wrong. Two consequences:
+> ⚠️ **Correction to a claim in earlier drafts.** Diff content _is_ cached — in memory, in the chat route, keyed `repo:number`. It is not persisted to disk, but "never cached" was wrong. Two consequences:
 >
 > 1. Diff text for a reviewed PR stays in process memory for the lifetime of the server.
 > 2. The key omits `headSha`, so a PR that receives a push serves a **stale diff** until restart. Architecture §17 requires `headSha` keying — tracked for Phase 6/9.
@@ -89,7 +89,7 @@ PocketReview uses no database.
 
 ### Why the risk is bounded today
 
-Fast-track is a **queue-lane label held in browser memory**. It approves nothing, merges nothing, and is never sent to GitHub. The gate's absence changes which card a reviewer sees first — it cannot cause an unreviewed merge, because no merge path exists at all (§ *Read-only by construction*).
+Fast-track is a **queue-lane label held in browser memory**. It approves nothing, merges nothing, and is never sent to GitHub. The gate's absence changes which card a reviewer sees first — it cannot cause an unreviewed merge, because no merge path exists at all (§ _Read-only by construction_).
 
 ### The target contract — architecture §11
 
@@ -122,9 +122,9 @@ The gate can only **remove** eligibility; it can never grant it. All conditions 
 
 **Critical-path protection is structural.** The prohibition on fast-tracking auth, payments and database changes is intended to be unconditional — not overridable by a low risk score or by configuration.
 
-Even when built, fast-track produces a marked queue and at most an optional GitHub *comment*. It will not call the approve or merge API. That is a deliberate product decision.
+Even when built, fast-track produces a marked queue and at most an optional GitHub _comment_. It will not call the approve or merge API. That is a deliberate product decision.
 
-**Required test (Phase 8):** *critical paths can never be fast-tracked at any score.*
+**Required test (Phase 8):** _critical paths can never be fast-tracked at any score._
 
 ---
 
@@ -158,4 +158,4 @@ Diff content reaches the model, and diffs are attacker-controllable on a public 
 
 ---
 
-*Verified against the codebase on 2026-09-03 — Phase 3 complete. The Policy Gate is Phase 8 and is not yet enforced.*
+_Verified against the codebase on 2026-09-03 — Phase 3 complete. The Policy Gate is Phase 8 and is not yet enforced._

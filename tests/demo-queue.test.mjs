@@ -13,9 +13,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const { DEMO_SIGNALS } = await import("../src/lib/demo/fixtures.ts");
-const { assessRisk, baselineScore } = await import(
-  "../src/lib/engines/risk-engine.ts"
-);
+const { assessRisk, baselineScore } =
+  await import("../src/lib/engines/risk-engine.ts");
 
 /** Score the fixtures the way the queue endpoint does. */
 function scoreQueue() {
@@ -66,10 +65,7 @@ test("DEMO: the two-line auth change outranks the 5000-line lockfile", () => {
 
 test("DEMO: the auth change reaches at least the high band", () => {
   const auth = scoreQueue().find((pr) => pr.number === 147);
-  assert.ok(
-    auth.risk.score >= 50,
-    `expected >= 50, got ${auth.risk.score}`,
-  );
+  assert.ok(auth.risk.score >= 50, `expected >= 50, got ${auth.risk.score}`);
   assert.ok(auth.risk.floor !== null, "a floor should be carrying this score");
 });
 
@@ -81,7 +77,10 @@ test("DEMO: the payments rewrite is the top of the queue", () => {
 
 test("DEMO: trivial changes sink to the bottom", () => {
   const queue = scoreQueue();
-  const bottom = queue.slice(-2).map((pr) => pr.number).sort();
+  const bottom = queue
+    .slice(-2)
+    .map((pr) => pr.number)
+    .sort();
 
   // The lockfile and the docs typo.
   assert.deepEqual(bottom, [152, 155]);

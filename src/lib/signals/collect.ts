@@ -232,9 +232,7 @@ export async function collectSignals(
   if (history?.available) availability.history = true;
   if (authorStats) availability.authorHistory = true;
 
-  const codeownersRules = codeownersText
-    ? parseCodeowners(codeownersText)
-    : [];
+  const codeownersRules = codeownersText ? parseCodeowners(codeownersText) : [];
 
   const files = buildFileSignals(
     rawFiles,
@@ -430,9 +428,7 @@ export async function collectQueueSignals(
   const signals = collected.filter((s): s is PRSignals => s !== null);
 
   // A PR whose head branch is another PR's base is blocking that PR.
-  const baseBranches = new Set(
-    signals.map((s) => `${s.repo}:${s.baseBranch}`),
-  );
+  const baseBranches = new Set(signals.map((s) => `${s.repo}:${s.baseBranch}`));
   for (const signal of signals) {
     signal.isBlockingOthers = baseBranches.has(
       `${signal.repo}:${signal.headBranch}`,

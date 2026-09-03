@@ -4,7 +4,7 @@
 
 **Intelligent PR triage for AI-accelerated engineering teams.**
 
-*We don't review your code. We decide where your attention goes.*
+_We don't review your code. We decide where your attention goes._
 
 </div>
 
@@ -30,11 +30,11 @@ BEFORE AI                          AFTER AI
    balanced                        ██████████████  unbounded backlog
 ```
 
-When arrival rate exceeds service rate, the queue does not stabilise. It grows until something is dropped — and what gets dropped is review *quality*, silently, because a reviewer facing 15 PRs starts skimming.
+When arrival rate exceeds service rate, the queue does not stabilise. It grows until something is dropped — and what gets dropped is review _quality_, silently, because a reviewer facing 15 PRs starts skimming.
 
 Three things make it worse than a volume problem:
 
-- **The trust tax.** Reviewers can't skim AI-authored code the way they skim a trusted colleague's. Every AI PR absorbs full scrutiny, so throughput *falls* while arrival rate *rises*.
+- **The trust tax.** Reviewers can't skim AI-authored code the way they skim a trusted colleague's. Every AI PR absorbs full scrutiny, so throughput _falls_ while arrival rate _rises_.
 - **Existing tools optimise the wrong variable.** Automated reviewers add generated commentary to each PR. That improves review quality — and increases reading load per PR. The bottleneck is throughput.
 - **The attention mismatch.** A senior reviewer's genuinely free moments happen on a commute, between meetings, in a queue. Every review tool assumes a desk and an uninterrupted block.
 
@@ -42,24 +42,24 @@ Three things make it worse than a volume problem:
 
 PocketReview treats **reviewer attention as a resource to be allocated**, not a queue to be drained.
 
-It does not try to answer *"is this code correct?"* — that's unsolved, and any system claiming otherwise is lying. It answers a strictly easier, strictly more useful question:
+It does not try to answer _"is this code correct?"_ — that's unsolved, and any system claiming otherwise is lying. It answers a strictly easier, strictly more useful question:
 
 > **Given 17 open PRs and 30 minutes of a senior engineer's time — which PRs should they open, in what order, and what should they look at first?**
 
 Every PR is scored, ranked, costed, and explained. The reviewer triages the queue from their phone in dead time, then spends their focused hours on the PRs that actually earned them.
 
-**A human still reviews every pull request.** What changes is depth and order — and that's the entire saving. Deciding *whether* a PR needs deep thought costs 30 seconds of judgement; today it costs a 15-minute context switch, because the only way to learn a PR was a typo fix is to open it and read it.
+**A human still reviews every pull request.** What changes is depth and order — and that's the entire saving. Deciding _whether_ a PR needs deep thought costs 30 seconds of judgement; today it costs a 15-minute context switch, because the only way to learn a PR was a typo fix is to open it and read it.
 
 ## What it is — and is not
 
-| | |
-|---|---|
-| ❌ **Not** an AI code reviewer | No line-level review comments. |
-| ❌ **Not** an auto-approval bot | No LLM output ever merges code. |
-| ❌ **Not** GitHub-on-a-phone | Deliberately shows *less*, not the same thing smaller. |
-| ✅ **Is** a triage and attention-allocation system | Rank, explain, estimate, assign, schedule. |
-| ✅ **Is** deterministic at its core | Scores are arithmetic over measured signals. |
-| ✅ **Is** explainable end-to-end | Every point traces back to a named signal. |
+|                                                    |                                                        |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| ❌ **Not** an AI code reviewer                     | No line-level review comments.                         |
+| ❌ **Not** an auto-approval bot                    | No LLM output ever merges code.                        |
+| ❌ **Not** GitHub-on-a-phone                       | Deliberately shows _less_, not the same thing smaller. |
+| ✅ **Is** a triage and attention-allocation system | Rank, explain, estimate, assign, schedule.             |
+| ✅ **Is** deterministic at its core                | Scores are arithmetic over measured signals.           |
+| ✅ **Is** explainable end-to-end                   | Every point traces back to a named signal.             |
 
 ### The core design decision
 
@@ -75,7 +75,7 @@ Every PR is scored, ranked, costed, and explained. The reviewer triages the queu
                                              └──▶ LLM writes prose *about* it
 ```
 
-If an LLM produced the number, *"why 87?"* has no answer. Because arithmetic produces it, the answer is a table of contributions that sums to 87 and is identical on every run.
+If an LLM produced the number, _"why 87?"_ has no answer. Because arithmetic produces it, the answer is a table of contributions that sums to 87 and is identical on every run.
 
 Turn the LLM off entirely and every score, ranking, and review plan still works. You lose the English, not the system.
 
@@ -116,15 +116,15 @@ Only the explanation layer is non-deterministic — and it can only produce word
 
 Seven weighted dimensions, each returning a normalised sub-score plus human-readable reasons:
 
-| Dimension | Weight | What it captures |
-|---|---|---|
-| Blast radius | 0.20 | Files, lines, spread across subsystems |
-| Domain criticality | 0.20 | Auth, payments, database, infra — **size-independent** |
-| Test posture | 0.15 | Coverage ratio; removed tests force maximum |
-| Historical instability | 0.15 | Churn, revert rate, prior incident files |
-| Change complexity | 0.12 | Control-flow delta, nesting, deletion-heavy changes |
-| Dependencies | 0.10 | New packages, major bumps, supply chain |
-| Author & provenance | 0.08 | First-time contributor, revert history, AI hints |
+| Dimension              | Weight | What it captures                                       |
+| ---------------------- | ------ | ------------------------------------------------------ |
+| Blast radius           | 0.20   | Files, lines, spread across subsystems                 |
+| Domain criticality     | 0.20   | Auth, payments, database, infra — **size-independent** |
+| Test posture           | 0.15   | Coverage ratio; removed tests force maximum            |
+| Historical instability | 0.15   | Churn, revert rate, prior incident files               |
+| Change complexity      | 0.12   | Control-flow delta, nesting, deletion-heavy changes    |
+| Dependencies           | 0.10   | New packages, major bumps, supply chain                |
+| Author & provenance    | 0.08   | First-time contributor, revert history, AI hints       |
 
 Domain criticality being **size-independent** is the point. A one-line change to `src/auth/session.ts` scores high there regardless of size — which is exactly the failure mode of naive "risk = lines changed" scoring.
 
@@ -153,7 +153,7 @@ This is 0/1 knapsack. With integer minutes and n ≤ 50, exact dynamic programmi
 
 ### The policy gate
 
-A right swipe is a **recommendation, never a merge**. The gate can only *remove* eligibility — never grant it.
+A right swipe is a **recommendation, never a merge**. The gate can only _remove_ eligibility — never grant it.
 
 ```
   risk < threshold      ✓/✗
@@ -170,12 +170,12 @@ Fail any check and the card refuses to leave the deck — it flips and shows why
 
 ## Triage gestures
 
-| Gesture | Action | Effect |
-|---|---|---|
-| **→ right** | Fast-track | Policy gate runs. Marked fast-lane. No merge, no approval. |
-| **← left** | Needs review | Deep lane. Enters the review plan with an effort estimate. |
-| **↑ up** | Explain | Summary, where-to-look-first, questions to ask. Optional voice. |
-| **↓ down** | Defer | Snoozed; resurfaces via age decay. |
+| Gesture     | Action       | Effect                                                          |
+| ----------- | ------------ | --------------------------------------------------------------- |
+| **→ right** | Fast-track   | Policy gate runs. Marked fast-lane. No merge, no approval.      |
+| **← left**  | Needs review | Deep lane. Enters the review plan with an effort estimate.      |
+| **↑ up**    | Explain      | Summary, where-to-look-first, questions to ask. Optional voice. |
+| **↓ down**  | Defer        | Snoozed; resurfaces via age decay.                              |
 
 ## Validation
 
@@ -234,7 +234,7 @@ policy:
   requireCiPassing: true
 
 llm:
-  enabled: true      # false → deterministic-only, no code leaves your network
+  enabled: true # false → deterministic-only, no code leaves your network
 ```
 
 ## Security & privacy
@@ -247,21 +247,19 @@ llm:
 
 ## Tech stack
 
-| | |
-|---|---|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS |
-| GitHub | Octokit (REST + GraphQL) |
-| AI | Anthropic SDK — explanation layer only |
-| Cards | react-tinder-card + @react-spring/web |
-| Voice | Web Speech API |
+|           |                                        |
+| --------- | -------------------------------------- |
+| Framework | Next.js 16 (App Router)                |
+| Language  | TypeScript                             |
+| Styling   | Tailwind CSS                           |
+| GitHub    | Octokit (REST + GraphQL)               |
+| AI        | Anthropic SDK — explanation layer only |
+| Cards     | react-tinder-card + @react-spring/web  |
+| Voice     | Web Speech API                         |
 
 ## Documentation
 
 Full system design, engine specifications, data model, API surface, and build phases: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
-
-
 
 <div align="center">
 

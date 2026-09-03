@@ -44,7 +44,9 @@ export default function QueueSummaryBar({
         </div>
 
         <span className="text-[11px] text-gray-400 font-medium tabular-nums shrink-0">
-          {done > 0 ? `${done}/${summary.total} triaged` : `${summary.total} to triage`}
+          {done > 0
+            ? `${done}/${summary.total} triaged`
+            : `${summary.total} to triage`}
         </span>
       </div>
 
@@ -57,6 +59,21 @@ export default function QueueSummaryBar({
             {summary.byLevel[level]} {LEVEL_STYLES[level].label.toLowerCase()}
           </span>
         ))}
+
+        {/* The queue's cost in reviewer time — half of the Phase 5 deficit. */}
+        {summary.totalMinutes > 0 && (
+          <span
+            className="text-[10.5px] font-medium text-gray-500 ml-auto tabular-nums"
+            title={ORDER.filter((l) => summary.minutesByLevel[l] > 0)
+              .map(
+                (l) =>
+                  `${LEVEL_STYLES[l].label}: ${summary.minutesByLevel[l]} min`,
+              )
+              .join("\n")}
+          >
+            {summary.totalMinutesLabel} of review
+          </span>
+        )}
       </div>
     </div>
   );

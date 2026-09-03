@@ -66,7 +66,10 @@ function build(
   const tests = files.filter((f) => f.isTest);
 
   const productionLinesAdded = production.reduce((n, f) => n + f.additions, 0);
-  const productionLinesDeleted = production.reduce((n, f) => n + f.deletions, 0);
+  const productionLinesDeleted = production.reduce(
+    (n, f) => n + f.deletions,
+    0,
+  );
   const testLinesAdded = tests.reduce((n, f) => n + f.additions, 0);
   const testLinesDeleted = tests.reduce((n, f) => n + f.deletions, 0);
 

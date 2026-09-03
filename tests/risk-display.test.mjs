@@ -10,15 +10,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { LEVEL_STYLES, levelStyle, timeAgo, shortRepo } = await import(
-  "../src/lib/risk-display.ts"
-);
+const { LEVEL_STYLES, levelStyle, timeAgo, shortRepo } =
+  await import("../src/lib/risk-display.ts");
 
 test("every risk level has a complete style", () => {
   for (const level of ["low", "medium", "high", "critical"]) {
     const style = levelStyle(level);
     assert.ok(style, `${level} has no style`);
-    for (const key of ["label", "dot", "bg", "text", "border", "bar", "accent"]) {
+    for (const key of [
+      "label",
+      "dot",
+      "bg",
+      "text",
+      "border",
+      "bar",
+      "accent",
+    ]) {
       assert.ok(
         typeof style[key] === "string" && style[key].length > 0,
         `${level}.${key} is missing`,
@@ -29,7 +36,11 @@ test("every risk level has a complete style", () => {
 
 test("levels are visually distinct", () => {
   const bars = Object.values(LEVEL_STYLES).map((s) => s.bar);
-  assert.equal(new Set(bars).size, bars.length, "two levels share a bar colour");
+  assert.equal(
+    new Set(bars).size,
+    bars.length,
+    "two levels share a bar colour",
+  );
 });
 
 test("relative time reads naturally at each scale", () => {

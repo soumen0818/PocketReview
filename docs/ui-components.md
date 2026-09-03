@@ -10,7 +10,7 @@ Next.js 16 App Router, React 19, Tailwind. Mobile-first, developed against a 390
 
 ## The principle
 
-> **The phone must show *less*, not the same thing smaller.**
+> **The phone must show _less_, not the same thing smaller.**
 
 GitHub-on-mobile already exists and it is unpleasant. Our advantage is that the reviewer sees a **decision-shaped summary** instead of a diff. Every element on the card must serve a triage decision; anything that does not is removed.
 
@@ -75,12 +75,12 @@ State lives in `page.tsx` and is pushed down. Data fetching and side effects liv
 
 Powered by `react-tinder-card`.
 
-| Gesture | Button | Action | Effect |
-|---|---|---|---|
-| **→ right** | ⚡ Fast-track | `fast-track` | Records a queue-lane decision. **Never approves or merges.** |
-| **← left** | Needs review | `needs-review` | Marks for deep review. |
-| **↑ up** | Explain | — | Opens the chat screen. Not a recorded triage action. |
-| **↓ down** | — | 🕐 `defer` | **Not reachable.** See below. |
+| Gesture     | Button        | Action         | Effect                                                       |
+| ----------- | ------------- | -------------- | ------------------------------------------------------------ |
+| **→ right** | ⚡ Fast-track | `fast-track`   | Records a queue-lane decision. **Never approves or merges.** |
+| **← left**  | Needs review  | `needs-review` | Marks for deep review.                                       |
+| **↑ up**    | Explain       | —              | Opens the chat screen. Not a recorded triage action.         |
+| **↓ down**  | —             | 🕐 `defer`     | **Not reachable.** See below.                                |
 
 **Thresholds:** overlay appears past `30px` of drag; the swipe commits at `swipeThreshold={80}`.
 
@@ -96,12 +96,12 @@ Powered by `react-tinder-card`.
 
 Centralised in [risk-display.ts](../src/lib/risk-display.ts) as `LEVEL_STYLES`, so the badge, card accent, breakdown bars and summary bar cannot drift.
 
-| Level | Score | Dot | `bg` | `text` | `border` | `bar` | `accent` |
-|---|---|---|---|---|---|---|---|
-| `critical` | 75–100 | 🔴 | `bg-red-50` | `text-red-700` | `border-red-200` | `bg-red-500` | `bg-red-400` |
-| `high` | 50–74 | 🟠 | `bg-orange-50` | `text-orange-700` | `border-orange-200` | `bg-orange-500` | `bg-orange-400` |
-| `medium` | 25–49 | 🟡 | `bg-amber-50` | `text-amber-700` | `border-amber-200` | `bg-amber-500` | `bg-amber-400` |
-| `low` | 0–24 | 🟢 | `bg-emerald-50` | `text-emerald-700` | `border-emerald-200` | `bg-emerald-500` | `bg-emerald-400` |
+| Level      | Score  | Dot | `bg`            | `text`             | `border`             | `bar`            | `accent`         |
+| ---------- | ------ | --- | --------------- | ------------------ | -------------------- | ---------------- | ---------------- |
+| `critical` | 75–100 | 🔴  | `bg-red-50`     | `text-red-700`     | `border-red-200`     | `bg-red-500`     | `bg-red-400`     |
+| `high`     | 50–74  | 🟠  | `bg-orange-50`  | `text-orange-700`  | `border-orange-200`  | `bg-orange-500`  | `bg-orange-400`  |
+| `medium`   | 25–49  | 🟡  | `bg-amber-50`   | `text-amber-700`   | `border-amber-200`   | `bg-amber-500`   | `bg-amber-400`   |
+| `low`      | 0–24   | 🟢  | `bg-emerald-50` | `text-emerald-700` | `border-emerald-200` | `bg-emerald-500` | `bg-emerald-400` |
 
 Emoji dots exist so level survives where colour alone is insufficient. A test asserts every level has a complete, visually distinct style.
 
@@ -246,15 +246,15 @@ Branding and the "Queue cleared / Your attention is free" terminal state.
 
 ## Planned components
 
-| Component | Phase | Purpose |
-|---|---|---|
-| `plan/ReviewPlan.tsx` | 5 | The knapsack result — ordered plan, coverage %, deferred items |
-| `plan/BudgetPicker.tsx` | 5 | "I have 30 minutes" |
-| `plan/CapacityPanel.tsx` | 5 | Queue load vs capacity — the deficit |
-| `app/plan/page.tsx` | 5 | Plan route |
-| `explain/ExplainScreen.tsx` | 6 | Structured explanation |
-| `explain/VoiceButton.tsx` | 6 | `speechSynthesis` playback |
-| `reviewer/ReviewerCard.tsx` | 7 | Suggested reviewer — **hidden when `confidence < 0.4`** |
+| Component                   | Phase | Purpose                                                        |
+| --------------------------- | ----- | -------------------------------------------------------------- |
+| `plan/ReviewPlan.tsx` ✅    | 5     | The knapsack result — ordered plan, coverage %, deferred items |
+| `plan/BudgetPicker.tsx` ✅  | 5     | "I have 30 minutes"                                            |
+| `plan/CapacityPanel.tsx` ✅ | 5     | Queue load vs capacity — the deficit                           |
+| `app/plan/page.tsx` ✅      | 5     | Plan route                                                     |
+| `explain/ExplainScreen.tsx` | 6     | Structured explanation                                         |
+| `explain/VoiceButton.tsx`   | 6     | `speechSynthesis` playback                                     |
+| `reviewer/ReviewerCard.tsx` | 7     | Suggested reviewer — **hidden when `confidence < 0.4`**        |
 
 ---
 
@@ -266,7 +266,7 @@ Branding and the "Queue cleared / Your attention is free" terminal state.
 
 ### `useSwipeHistory`
 
-[src/hooks/useSwipeHistory.ts](../src/hooks/useSwipeHistory.ts) — records a `TriageRecord` per decision, including **`riskAtDecision`**. That field is the audit trail: it lets the queue later say *"you fast-tracked this at 18; it now scores 61."*
+[src/hooks/useSwipeHistory.ts](../src/hooks/useSwipeHistory.ts) — records a `TriageRecord` per decision, including **`riskAtDecision`**. That field is the audit trail: it lets the queue later say _"you fast-tracked this at 18; it now scores 61."_
 
 In-memory only — lost on refresh. Persistence arrives with `POST /api/triage` in Phase 8.
 
@@ -307,4 +307,4 @@ The deck **never blocks on an LLM.** `/api/prs` returns scores, reasons and the 
 
 ---
 
-*Verified against the source on 2026-09-03 — Phase 3 complete.*
+_Verified against the source on 2026-09-03 — Phase 3 complete._

@@ -124,7 +124,11 @@ export async function loadConfig(
 
     cached = {
       rules: userRules
-        ? [...DEFAULT_PATH_RULES.slice(0, 3), ...userRules, ...DEFAULT_PATH_RULES.slice(3)]
+        ? [
+            ...DEFAULT_PATH_RULES.slice(0, 3),
+            ...userRules,
+            ...DEFAULT_PATH_RULES.slice(3),
+          ]
         : DEFAULT_PATH_RULES,
       thresholds: { ...DEFAULT_CONFIG.thresholds, ...raw.thresholds },
       policy: { ...DEFAULT_CONFIG.policy, ...raw.policy },

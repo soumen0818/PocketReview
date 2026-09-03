@@ -82,9 +82,7 @@ export function makeSignals(overrides = {}) {
       ...files.map((f) => f.additions + f.deletions),
     ),
     diffEntropy: 0.2,
-    distinctCategories: new Set(
-      productionFiles.map((f) => f.category),
-    ).size,
+    distinctCategories: new Set(productionFiles.map((f) => f.category)).size,
 
     touchesAuth: files.some((f) => f.category === "auth"),
     touchesPayments: files.some((f) => f.category === "payments"),

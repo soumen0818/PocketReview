@@ -1,7 +1,7 @@
 # PocketReview — Documentation
 
 > **Intelligent PR triage for AI-accelerated engineering teams.**
-> *We don't review your code. We decide where your attention goes.*
+> _We don't review your code. We decide where your attention goes._
 
 ---
 
@@ -24,26 +24,26 @@ Open in Chrome DevTools → device toolbar → iPhone 14 Pro. PocketReview is mo
 
 ## Start here
 
-| Document | What it covers |
-|---|---|
+| Document                               | What it covers                                                                                                                                  |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | **[Architecture](../ARCHITECTURE.md)** | **The source of truth for the design.** The problem, the thesis, all nine layers, the data model, validation strategy, build phases, judge Q&A. |
-| **[PROGRESS.md](./PROGRESS.md)** | **The source of truth for status.** What is built, what is pending, what was deliberately cut, and the decision log. |
+| **[PROGRESS.md](./PROGRESS.md)**       | **The source of truth for status.** What is built, what is pending, what was deliberately cut, and the decision log.                            |
 
-Everything else in this folder is reference material for what is *shipped today*.
+Everything else in this folder is reference material for what is _shipped today_.
 
 ---
 
 ## Reference
 
-| Document | What it covers |
-|---|---|
-| [Risk Scoring](./risk-scoring.md) | The 7 dimensions with real formulas, modifiers, floors, confidence, the demo table |
-| [API Reference](./api-reference.md) | Endpoints, TypeScript interfaces, internal signatures |
-| [Configuration](./configuration.md) | Env vars, `.pocketreview.yml`, path rules and precedence, thresholds |
-| [UI Components](./ui-components.md) | Component props, gestures, colour system, hooks |
-| [Security](./security.md) | Token scopes, LLM opt-out, persistence, the policy gate |
-| [Testing](./testing.md) | Test suites, the claims they defend, fixtures, the eval harness |
-| [Contributing](./contributing.md) | Setup, the four invariants, adding dimensions and signals |
+| Document                            | What it covers                                                                     |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| [Risk Scoring](./risk-scoring.md)   | The 7 dimensions with real formulas, modifiers, floors, confidence, the demo table |
+| [API Reference](./api-reference.md) | Endpoints, TypeScript interfaces, internal signatures                              |
+| [Configuration](./configuration.md) | Env vars, `.pocketreview.yml`, path rules and precedence, thresholds               |
+| [UI Components](./ui-components.md) | Component props, gestures, colour system, hooks                                    |
+| [Security](./security.md)           | Token scopes, LLM opt-out, persistence, the policy gate                            |
+| [Testing](./testing.md)             | Test suites, the claims they defend, fixtures, the eval harness                    |
+| [Contributing](./contributing.md)   | Setup, the four invariants, adding dimensions and signals                          |
 
 **Status convention.** Reference docs mark every section ✅ **Shipped** (verified against source) or 🕐 **Planned — Phase N** (designed in the architecture, not yet built). The architecture document describes the complete target system; these describe the code as it exists.
 
@@ -51,7 +51,7 @@ Everything else in this folder is reference material for what is *shipped today*
 
 ## The idea in 30 seconds
 
-Code review is the only stage of the software lifecycle that AI made *worse*. Writing accelerated 4–5×; review still runs at the speed of one human reading one diff. When arrival rate exceeds service rate, the queue grows without bound — and what gets silently dropped is review quality.
+Code review is the only stage of the software lifecycle that AI made _worse_. Writing accelerated 4–5×; review still runs at the speed of one human reading one diff. When arrival rate exceeds service rate, the queue grows without bound — and what gets silently dropped is review quality.
 
 PocketReview treats **reviewer attention as a resource to allocate**, not a queue to drain.
 
@@ -75,9 +75,9 @@ GitHub · git history · CI · CODEOWNERS
 
 **The score is computed in code. The LLM only narrates it.** Disable the LLM and every score, ranking and breakdown still works — you lose the English, not the system.
 
-We do not answer *"is this code correct?"* — that is unsolved. We answer:
+We do not answer _"is this code correct?"_ — that is unsolved. We answer:
 
-> *"Given 17 open PRs and 30 minutes, which should this engineer open, in what order, and what should they look at first?"*
+> _"Given 17 open PRs and 30 minutes, which should this engineer open, in what order, and what should they look at first?"_
 
 ---
 
@@ -85,12 +85,12 @@ We do not answer *"is this code correct?"* — that is unsolved. We answer:
 
 Reproduce with `npm test`:
 
-| Scenario | Lines | PocketReview | Lines-changed baseline |
-|---|---:|---:|---:|
-| One-line auth change | 2 | **55** · high | 0 |
-| 4,000-line lockfile | 5,000 | **0** · low | 100 |
-| Docs typo fix | 10 | **0** · low | 1 |
-| Auth + payments rewrite | 660 | **89** · critical | 66 |
+| Scenario                | Lines |      PocketReview | Lines-changed baseline |
+| ----------------------- | ----: | ----------------: | ---------------------: |
+| One-line auth change    |     2 |     **55** · high |                      0 |
+| 4,000-line lockfile     | 5,000 |       **0** · low |                    100 |
+| Docs typo fix           |    10 |       **0** · low |                      1 |
+| Auth + payments rewrite |   660 | **89** · critical |                     66 |
 
 The baseline ranks the lockfile at 100 and the auth change at 0 — **exactly inverted.**
 
@@ -98,16 +98,16 @@ The baseline ranks the lockfile at 100 and the auth change at 0 — **exactly in
 
 ## Key design decisions
 
-| Decision | Rationale |
-|---|---|
-| Deterministic scoring | *"Why 87?"* always has the same answer — a table of contributions summing to 87 |
-| Domain criticality is size-independent | A one-line auth change is as critical as a 400-line one |
-| Generated files excluded from size scoring | A 4,000-line lockfile must not read as high risk |
-| Floors on top of the weighted sum | Averaging is wrong for categorical facts; a floor only ever raises |
-| LLM narrates, never decides | No model output merges code or affects a score |
-| Missing signals degrade confidence | A repo without CI still gets scored — with an honest label |
-| AI provenance weighted at 0.08 | Source-agnostic: max ~3 points of 100 |
-| Mobile-first | Free moments happen on commutes, not at desks |
+| Decision                                   | Rationale                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------- |
+| Deterministic scoring                      | _"Why 87?"_ always has the same answer — a table of contributions summing to 87 |
+| Domain criticality is size-independent     | A one-line auth change is as critical as a 400-line one                         |
+| Generated files excluded from size scoring | A 4,000-line lockfile must not read as high risk                                |
+| Floors on top of the weighted sum          | Averaging is wrong for categorical facts; a floor only ever raises              |
+| LLM narrates, never decides                | No model output merges code or affects a score                                  |
+| Missing signals degrade confidence         | A repo without CI still gets scored — with an honest label                      |
+| AI provenance weighted at 0.08             | Source-agnostic: max ~3 points of 100                                           |
+| Mobile-first                               | Free moments happen on commutes, not at desks                                   |
 
 Full reasoning in the [Decision Log](./PROGRESS.md#decision-log).
 
@@ -120,17 +120,17 @@ Full reasoning in the [Decision Log](./PROGRESS.md#decision-log).
   Phase 1  Signal Layer               ██████████  100%   ✅
   Phase 2  Risk Engine                ██████████  100%   ✅
   Phase 3  Deck & risk UI             ██████████  100%   ✅
-  Phase 4  Priority & effort          ░░░░░░░░░░    0%   ⬅ NEXT
-  Phase 5  Review plan                ░░░░░░░░░░    0%
-  Phase 6  Explanation layer          ░░░░░░░░░░    0%
+  Phase 4  Priority & effort          ██████████  100%   ✅
+  Phase 5  Review plan                ██████████  100%   ✅
+  Phase 6  Explanation layer          ░░░░░░░░░░    0%   ⬅ NEXT
   Phase 7  Reviewer engine            ░░░░░░░░░░    0%   ⚠ first to cut
   Phase 8  Policy gate & eval         ░░░░░░░░░░    0%
   Phase 9  Hardening & demo           ░░░░░░░░░░    0%
 ```
 
-**74/74 tests pass · typecheck clean · production build succeeds.**
+**131/131 tests pass · typecheck clean · production build succeeds.**
 
-Never cut: **Risk Engine** (2), **Review Plan** (5), **Eval harness** (8). Those three are the project; everything else is presentation.
+Never cut: **Risk Engine** (2) ✅, **Review Plan** (5) ✅, **Eval harness** (8). Those three are the project; everything else is presentation.
 
 ---
 
@@ -173,7 +173,7 @@ tests/
 └── helpers/signals.mjs
 ```
 
-Directories in architecture §15 that do not exist yet: `lib/engines/priority-engine.ts`, `review-plan.ts`, `reviewer-engine.ts`, `lib/llm/`, `lib/policy/`, `lib/cache/`, `eval/`, `fixtures/`.
+Directories in architecture §15 that do not exist yet: `lib/engines/reviewer-engine.ts`, `lib/llm/`, `lib/policy/`, `lib/cache/`, `eval/`, `fixtures/`.
 
 ---
 
@@ -186,4 +186,4 @@ Directories in architecture §15 that do not exist yet: `lib/engines/priority-en
 
 ---
 
-*PocketReview is a hackathon project. See [README.md](../README.md) for the project description.*
+_PocketReview is a hackathon project. See [README.md](../README.md) for the project description._

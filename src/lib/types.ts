@@ -7,6 +7,8 @@
  */
 
 import type { RiskAssessment } from "./engines/types";
+import type { PriorityScore } from "./engines/priority-engine";
+import type { EffortEstimate } from "./engines/effort-estimator";
 import type { PRSignals } from "./signals/types";
 
 /** Raw PR metadata, before scoring. */
@@ -38,6 +40,13 @@ export interface PullRequest {
 export interface TriagedPR extends PullRequest {
   headSha: string;
   risk: RiskAssessment;
+  /**
+   * Queue position score — "what should I open right now?", as distinct from
+   * risk's "how much attention does this need?".
+   */
+  priority: PriorityScore;
+  /** Estimated review cost in minutes, with its cost breakdown. */
+  effort: EffortEstimate;
   /** Score from the naive lines-changed model, for comparison. */
   baseline: number;
   /** Present when the full signal set was collected. */
@@ -93,4 +102,17 @@ export interface QueueSummary {
   };
   /** True when any PR scored with reduced signal availability. */
   hasLowConfidence: boolean;
+  /** Total review minutes the visible queue represents. */
+  totalMinutes: number;
+  /** `totalMinutes` rendered as "2h 47m". */
+  totalMinutesLabel: string;
+  /** Review minutes per risk band — the capacity panel's rows. */
+  minutesByLevel: {
+    low: number;
+    medium: number;
+    high: number;
+    critical: number;
+  };
+  /** PRs hidden by suppression (drafts, approved, own PRs). */
+  suppressed: number;
 }

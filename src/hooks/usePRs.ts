@@ -12,6 +12,10 @@ const EMPTY_SUMMARY: QueueSummary = {
   total: 0,
   byLevel: { low: 0, medium: 0, high: 0, critical: 0 },
   hasLowConfidence: false,
+  totalMinutes: 0,
+  totalMinutesLabel: "0 min",
+  minutesByLevel: { low: 0, medium: 0, high: 0, critical: 0 },
+  suppressed: 0,
 };
 
 /**

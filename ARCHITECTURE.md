@@ -35,7 +35,7 @@
 
 ## 1. The problem
 
-Code review is the only stage of the software lifecycle that AI has made *worse*.
+Code review is the only stage of the software lifecycle that AI has made _worse_.
 
 Every other stage got faster. Writing code, generating tests, scaffolding services, drafting docs — all accelerated. But review still runs at exactly the speed of one human being reading one diff, and that speed has not moved.
 
@@ -55,13 +55,13 @@ BEFORE AI                          AFTER AI
    balanced                        ██████████████  unbounded backlog
 ```
 
-In queueing terms: when arrival rate λ exceeds service rate μ, the queue length grows without bound. It does not stabilise. It does not "catch up on Friday." It grows until something is dropped — and what gets dropped is *review quality*, silently, because a reviewer facing 15 PRs starts skimming.
+In queueing terms: when arrival rate λ exceeds service rate μ, the queue length grows without bound. It does not stabilise. It does not "catch up on Friday." It grows until something is dropped — and what gets dropped is _review quality_, silently, because a reviewer facing 15 PRs starts skimming.
 
 Three forces make this worse than a simple volume problem:
 
-**The trust tax.** Reviewers cannot skim AI-authored code the way they skim a trusted colleague's. Every AI PR absorbs full scrutiny, so effective throughput μ *falls* at the same time λ rises. The gap widens from both sides.
+**The trust tax.** Reviewers cannot skim AI-authored code the way they skim a trusted colleague's. Every AI PR absorbs full scrutiny, so effective throughput μ _falls_ at the same time λ rises. The gap widens from both sides.
 
-**Existing tools optimise the wrong variable.** Automated review bots add more generated commentary to each PR. That may improve the quality of a review once a human sits down — but it increases the reading load per PR. They optimise review *quality*; the bottleneck is review *throughput*.
+**Existing tools optimise the wrong variable.** Automated review bots add more generated commentary to each PR. That may improve the quality of a review once a human sits down — but it increases the reading load per PR. They optimise review _quality_; the bottleneck is review _throughput_.
 
 **The attention/location mismatch.** A senior reviewer's genuinely free moments — commute, between meetings, queuing for coffee — happen away from a laptop. Every review tool assumes a desk, a large screen, and an uninterrupted block. The available minutes and the usable minutes never overlap.
 
@@ -73,7 +73,7 @@ Three forces make this worse than a simple volume problem:
 
 Everything in this architecture follows from that one sentence.
 
-We do not attempt to answer *"is this code correct?"* — that is an unsolved problem, and any system claiming to answer it is lying. We answer a strictly easier, strictly more useful question:
+We do not attempt to answer _"is this code correct?"_ — that is an unsolved problem, and any system claiming to answer it is lying. We answer a strictly easier, strictly more useful question:
 
 > **"Given 17 open PRs and 30 minutes of a senior engineer's time, which PRs should they open, in what order, and what should they look at first?"**
 
@@ -83,14 +83,14 @@ That question is answerable, measurable, and defensible.
 
 ## 3. What PocketReview is — and is not
 
-| | |
-|---|---|
-| ❌ **Not** an AI code reviewer | We produce no line-level review comments. |
-| ❌ **Not** an auto-approval bot | No LLM output ever merges code. |
-| ❌ **Not** GitHub-on-a-phone | We deliberately show *less* than GitHub, not the same in a smaller window. |
-| ✅ **Is** a triage and attention-allocation system | Rank, explain, estimate, assign, schedule. |
-| ✅ **Is** deterministic at its core | Scores come from arithmetic over measured signals — never from an LLM. |
-| ✅ **Is** explainable end-to-end | Every point of every score traces back to a named signal. |
+|                                                    |                                                                            |
+| -------------------------------------------------- | -------------------------------------------------------------------------- |
+| ❌ **Not** an AI code reviewer                     | We produce no line-level review comments.                                  |
+| ❌ **Not** an auto-approval bot                    | No LLM output ever merges code.                                            |
+| ❌ **Not** GitHub-on-a-phone                       | We deliberately show _less_ than GitHub, not the same in a smaller window. |
+| ✅ **Is** a triage and attention-allocation system | Rank, explain, estimate, assign, schedule.                                 |
+| ✅ **Is** deterministic at its core                | Scores come from arithmetic over measured signals — never from an LLM.     |
+| ✅ **Is** explainable end-to-end                   | Every point of every score traces back to a named signal.                  |
 
 ### The single most important design decision
 
@@ -106,7 +106,7 @@ That question is answerable, measurable, and defensible.
                                              └──▶ LLM writes prose *about* it
 ```
 
-If an LLM produced the number, the question *"why 87?"* has no answer. Because arithmetic produces it, the answer is a table of contributions that adds to 87 and is identical on every run.
+If an LLM produced the number, the question _"why 87?"_ has no answer. Because arithmetic produces it, the answer is a table of contributions that adds to 87 and is identical on every run.
 
 This is the difference between a demo and an engineering system, and it is the axis on which this project should be judged.
 
@@ -171,16 +171,16 @@ This is the difference between a demo and an engineering system, and it is the a
 
 Each layer has exactly one job and a typed boundary. This is not decoration — it is what makes the system testable and what lets you answer architecture questions on stage.
 
-| Layer | Input | Output | Deterministic? |
-|---|---|---|---|
-| ① Signal | repo + PR number | `PRSignals` | yes |
-| ② Risk | `PRSignals` | `RiskAssessment` | **yes** |
-| ③ Reviewer | `PRSignals` + history | `ReviewerMatch[]` | **yes** |
-| ④ Effort | `PRSignals` | minutes | **yes** |
-| ⑤ Priority | all of the above | `PriorityScore` | **yes** |
-| ⑥ Plan | ranked PRs + budget | ordered plan | **yes** |
-| ⑦ Explanation | `RiskAssessment` + diff | prose | no (LLM) |
-| ⑧ Policy | `PRSignals` + risk | allow / veto | **yes** |
+| Layer         | Input                   | Output            | Deterministic? |
+| ------------- | ----------------------- | ----------------- | -------------- |
+| ① Signal      | repo + PR number        | `PRSignals`       | yes            |
+| ② Risk        | `PRSignals`             | `RiskAssessment`  | **yes**        |
+| ③ Reviewer    | `PRSignals` + history   | `ReviewerMatch[]` | **yes**        |
+| ④ Effort      | `PRSignals`             | minutes           | **yes**        |
+| ⑤ Priority    | all of the above        | `PriorityScore`   | **yes**        |
+| ⑥ Plan        | ranked PRs + budget     | ordered plan      | **yes**        |
+| ⑦ Explanation | `RiskAssessment` + diff | prose             | no (LLM)       |
+| ⑧ Policy      | `PRSignals` + risk      | allow / veto      | **yes**        |
 
 **Only layer ⑦ is non-deterministic, and it can only produce words — never numbers, never decisions.**
 
@@ -224,24 +224,24 @@ export interface PRSignals {
   deletions: number;
   changedFiles: number;
   files: FileSignal[];
-  largestFileChange: number;      // max lines touched in one file
-  diffEntropy: number;            // 0-1: spread across files vs concentrated
+  largestFileChange: number; // max lines touched in one file
+  diffEntropy: number; // 0-1: spread across files vs concentrated
 
   // ---- semantic classification
   touchesAuth: boolean;
   touchesPayments: boolean;
-  touchesDatabase: boolean;       // migrations, schema
-  touchesInfra: boolean;          // CI, Docker, deploy, IaC
-  touchesPublicAPI: boolean;      // route handlers, exported contracts
+  touchesDatabase: boolean; // migrations, schema
+  touchesInfra: boolean; // CI, Docker, deploy, IaC
+  touchesPublicAPI: boolean; // route handlers, exported contracts
   touchesConfig: boolean;
-  criticalPaths: string[];        // which patterns matched, for explanation
+  criticalPaths: string[]; // which patterns matched, for explanation
 
   // ---- test posture
   testFilesChanged: number;
   testLinesAdded: number;
   productionLinesAdded: number;
-  testRatio: number;              // testLines / productionLines
-  hasNoTests: boolean;            // prod code changed, zero test lines
+  testRatio: number; // testLines / productionLines
+  hasNoTests: boolean; // prod code changed, zero test lines
 
   // ---- dependencies
   dependencyFilesChanged: string[];
@@ -250,10 +250,10 @@ export interface PRSignals {
   lockfileOnly: boolean;
 
   // ---- historical instability (the expensive, valuable signals)
-  fileChurn: Record<string, number>;        // commits per file, 90d
-  fileRevertRate: Record<string, number>;   // reverts / commits per file
-  hotspotScore: number;                     // 0-1 aggregate instability
-  priorIncidentFiles: string[];             // files in past revert/hotfix commits
+  fileChurn: Record<string, number>; // commits per file, 90d
+  fileRevertRate: Record<string, number>; // reverts / commits per file
+  hotspotScore: number; // 0-1 aggregate instability
+  priorIncidentFiles: string[]; // files in past revert/hotfix commits
 
   // ---- CI & review state
   ciStatus: "passing" | "failing" | "pending" | "none";
@@ -270,20 +270,20 @@ export interface PRSignals {
 
   // ---- AI-authorship heuristics (source-agnostic, additive only)
   aiAuthorshipHints: {
-    botAuthor: boolean;             // known agent account
-    coAuthoredByTrailer: boolean;   // Co-Authored-By: <agent>
-    branchNamePattern: boolean;     // codex/, claude/, cursor/, devin/...
-    commitCadence: boolean;         // many files, single commit, seconds apart
+    botAuthor: boolean; // known agent account
+    coAuthoredByTrailer: boolean; // Co-Authored-By: <agent>
+    branchNamePattern: boolean; // codex/, claude/, cursor/, devin/...
+    commitCadence: boolean; // many files, single commit, seconds apart
     templatedBody: boolean;
   };
   likelyAIAuthored: boolean;
 
   // ---- urgency
   ageHours: number;
-  isBlockingOthers: boolean;        // other PRs target this branch
-  linkedIssueLabels: string[];      // bug, incident, P0, security
+  isBlockingOthers: boolean; // other PRs target this branch
+  linkedIssueLabels: string[]; // bug, incident, P0, security
   isDraft: boolean;
-  isHotfix: boolean;                // targets release/hotfix branch
+  isHotfix: boolean; // targets release/hotfix branch
 }
 
 export interface FileSignal {
@@ -293,14 +293,23 @@ export interface FileSignal {
   status: "added" | "modified" | "removed" | "renamed";
   category: FileCategory;
   isTest: boolean;
-  isGenerated: boolean;             // lockfiles, snapshots, build output
+  isGenerated: boolean; // lockfiles, snapshots, build output
   churn90d: number;
-  owners: string[];                 // from CODEOWNERS
+  owners: string[]; // from CODEOWNERS
 }
 
 export type FileCategory =
-  | "auth" | "payments" | "database" | "infra" | "api"
-  | "config" | "test" | "docs" | "ui" | "generated" | "other";
+  | "auth"
+  | "payments"
+  | "database"
+  | "infra"
+  | "api"
+  | "config"
+  | "test"
+  | "docs"
+  | "ui"
+  | "generated"
+  | "other";
 ```
 
 ### Path classification
@@ -310,15 +319,75 @@ A configurable, repo-overridable pattern table — not hardcoded regex buried in
 ```ts
 // src/lib/signals/path-rules.ts
 export const DEFAULT_PATH_RULES: PathRule[] = [
-  { category: "auth",      weight: 1.00, patterns: [/auth/i, /session/i, /token/i, /login/i, /oauth/i, /permission/i, /rbac/i] },
-  { category: "payments",  weight: 1.00, patterns: [/payment/i, /billing/i, /checkout/i, /stripe/i, /invoice/i, /subscription/i] },
-  { category: "database",  weight: 0.85, patterns: [/migration/i, /schema/i, /\.sql$/, /prisma/i, /models?\//i] },
-  { category: "infra",     weight: 0.75, patterns: [/Dockerfile/, /\.github\/workflows/, /terraform/i, /k8s/i, /helm/i, /deploy/i] },
-  { category: "api",       weight: 0.70, patterns: [/routes?\//i, /controllers?\//i, /api\//i, /handlers?\//i, /graphql/i] },
-  { category: "config",    weight: 0.55, patterns: [/config/i, /\.env/, /settings/i] },
-  { category: "generated", weight: 0.00, patterns: [/lock\.json$/, /\.lock$/, /\.snap$/, /dist\//, /build\//] },
-  { category: "docs",      weight: 0.05, patterns: [/\.md$/, /docs?\//i] },
-  { category: "test",      weight: 0.10, patterns: [/\.(test|spec)\./i, /__tests__/, /tests?\//i] },
+  {
+    category: "auth",
+    weight: 1.0,
+    patterns: [
+      /auth/i,
+      /session/i,
+      /token/i,
+      /login/i,
+      /oauth/i,
+      /permission/i,
+      /rbac/i,
+    ],
+  },
+  {
+    category: "payments",
+    weight: 1.0,
+    patterns: [
+      /payment/i,
+      /billing/i,
+      /checkout/i,
+      /stripe/i,
+      /invoice/i,
+      /subscription/i,
+    ],
+  },
+  {
+    category: "database",
+    weight: 0.85,
+    patterns: [/migration/i, /schema/i, /\.sql$/, /prisma/i, /models?\//i],
+  },
+  {
+    category: "infra",
+    weight: 0.75,
+    patterns: [
+      /Dockerfile/,
+      /\.github\/workflows/,
+      /terraform/i,
+      /k8s/i,
+      /helm/i,
+      /deploy/i,
+    ],
+  },
+  {
+    category: "api",
+    weight: 0.7,
+    patterns: [
+      /routes?\//i,
+      /controllers?\//i,
+      /api\//i,
+      /handlers?\//i,
+      /graphql/i,
+    ],
+  },
+  {
+    category: "config",
+    weight: 0.55,
+    patterns: [/config/i, /\.env/, /settings/i],
+  },
+  {
+    category: "generated",
+    weight: 0.0,
+    patterns: [/lock\.json$/, /\.lock$/, /\.snap$/, /dist\//, /build\//],
+  },
+  { category: "docs", weight: 0.05, patterns: [/\.md$/, /docs?\//i] },
+  {
+    category: "test",
+    weight: 0.1,
+    patterns: [/\.(test|spec)\./i, /__tests__/, /tests?\//i],
+  },
 ];
 ```
 
@@ -330,7 +399,7 @@ Repos override via `.pocketreview.yml`. **Generated files are excluded from size
 
 `src/lib/engines/risk-engine.ts`
 
-**Definition of risk we use:** *the probability that this PR needs careful human attention* — **not** the probability that it is buggy. That distinction is deliberate, defensible, and it is the sentence to lead with if a judge challenges the score.
+**Definition of risk we use:** _the probability that this PR needs careful human attention_ — **not** the probability that it is buggy. That distinction is deliberate, defensible, and it is the sentence to lead with if a judge challenges the score.
 
 ### Seven dimensions
 
@@ -351,17 +420,17 @@ Each dimension returns a normalised `0..1` sub-score plus human-readable reasons
 
 ```ts
 export interface RiskAssessment {
-  score: number;                    // 0-100, integer
+  score: number; // 0-100, integer
   level: "low" | "medium" | "high" | "critical";
-  dimensions: DimensionResult[];    // always exactly 7, always sums to score
-  topReasons: string[];             // 3-5, ranked by contribution
-  modifiers: Modifier[];            // applied caps/boosts, each explained
-  confidence: number;               // 0-1: how many signals were available
+  dimensions: DimensionResult[]; // always exactly 7, always sums to score
+  topReasons: string[]; // 3-5, ranked by contribution
+  modifiers: Modifier[]; // applied caps/boosts, each explained
+  confidence: number; // 0-1: how many signals were available
 }
 
 export interface DimensionResult {
   name: string;
-  raw: number;          // 0-1
+  raw: number; // 0-1
   weight: number;
   contribution: number; // raw * weight * 100
   reasons: string[];
@@ -375,15 +444,20 @@ How much surface area does this change touch?
 
 ```ts
 function blastRadius(s: PRSignals): number {
-  const realFiles = s.files.filter(f => !f.isGenerated && !f.isTest);
-  const realLines = realFiles.reduce((n, f) => n + f.additions + f.deletions, 0);
+  const realFiles = s.files.filter((f) => !f.isGenerated && !f.isTest);
+  const realLines = realFiles.reduce(
+    (n, f) => n + f.additions + f.deletions,
+    0,
+  );
 
-  const fileSpread = saturate(realFiles.length, 12);      // 12+ files → 1.0
-  const volume     = saturate(realLines, 500);            // 500+ lines → 1.0
-  const spread     = s.diffEntropy;                       // scattered > concentrated
-  const crossCut   = distinctCategories(realFiles) / 5;   // touching many subsystems
+  const fileSpread = saturate(realFiles.length, 12); // 12+ files → 1.0
+  const volume = saturate(realLines, 500); // 500+ lines → 1.0
+  const spread = s.diffEntropy; // scattered > concentrated
+  const crossCut = distinctCategories(realFiles) / 5; // touching many subsystems
 
-  return clamp(0.35*fileSpread + 0.35*volume + 0.15*spread + 0.15*crossCut);
+  return clamp(
+    0.35 * fileSpread + 0.35 * volume + 0.15 * spread + 0.15 * crossCut,
+  );
 }
 ```
 
@@ -391,21 +465,22 @@ function blastRadius(s: PRSignals): number {
 
 ### ② Domain Criticality (0.20)
 
-*Where* the change lands, weighted by the path rules. This is the dimension that catches the one-line `if (true)` in an auth file that a size-based scorer would rate as trivial.
+_Where_ the change lands, weighted by the path rules. This is the dimension that catches the one-line `if (true)` in an auth file that a size-based scorer would rate as trivial.
 
 ```ts
 function domainCriticality(s: PRSignals): number {
-  const maxWeight = Math.max(0, ...s.files
-    .filter(f => !f.isGenerated)
-    .map(f => pathWeight(f.category)));
+  const maxWeight = Math.max(
+    0,
+    ...s.files.filter((f) => !f.isGenerated).map((f) => pathWeight(f.category)),
+  );
 
   // weighted mass, not just the max — many critical files > one critical file
   const criticalLines = s.files
-    .filter(f => pathWeight(f.category) >= 0.7)
+    .filter((f) => pathWeight(f.category) >= 0.7)
     .reduce((n, f) => n + f.additions + f.deletions, 0);
   const mass = saturate(criticalLines, 150);
 
-  return clamp(0.70 * maxWeight + 0.30 * mass);
+  return clamp(0.7 * maxWeight + 0.3 * mass);
 }
 ```
 
@@ -415,9 +490,9 @@ function domainCriticality(s: PRSignals): number {
 
 ```ts
 function testPosture(s: PRSignals): number {
-  if (s.productionLinesAdded === 0) return 0;           // docs/config-only
-  if (s.hasNoTests) return 1.0;                          // prod code, zero tests
-  const ratio = s.testRatio;                             // testLines / prodLines
+  if (s.productionLinesAdded === 0) return 0; // docs/config-only
+  if (s.hasNoTests) return 1.0; // prod code, zero tests
+  const ratio = s.testRatio; // testLines / prodLines
   if (ratio >= 0.5) return 0.1;
   if (ratio >= 0.25) return 0.35;
   if (ratio >= 0.1) return 0.6;
@@ -433,15 +508,20 @@ The signal that makes this feel like real engineering rather than a hackathon he
 
 ```ts
 function historicalInstability(s: PRSignals): number {
-  const churn   = weightedMean(s.files.map(f => saturate(f.churn90d, 15)));
-  const reverts = Math.max(0, ...s.files.map(f => s.fileRevertRate[f.path] ?? 0));
+  const churn = weightedMean(s.files.map((f) => saturate(f.churn90d, 15)));
+  const reverts = Math.max(
+    0,
+    ...s.files.map((f) => s.fileRevertRate[f.path] ?? 0),
+  );
   const incident = s.priorIncidentFiles.length > 0 ? 1 : 0;
 
-  return clamp(0.45*churn + 0.35*saturate(reverts * 10, 1) + 0.20*incident);
+  return clamp(
+    0.45 * churn + 0.35 * saturate(reverts * 10, 1) + 0.2 * incident,
+  );
 }
 ```
 
-Reason text is concrete and quotable: *"`src/payments/charge.ts` was reverted twice in the last 90 days."*
+Reason text is concrete and quotable: _"`src/payments/charge.ts` was reverted twice in the last 90 days."_
 
 ### ⑤ Change Complexity (0.12)
 
@@ -451,7 +531,7 @@ Structural, language-agnostic, cheap to compute from the patch text:
 - max nesting depth added
 - new function/method count
 - deletion-heavy changes (removed logic is under-reviewed and often riskier than added)
-- rename/move detection (high churn, low semantic risk → *reduces* score)
+- rename/move detection (high churn, low semantic risk → _reduces_ score)
 
 ### ⑥ Dependency & Supply Chain (0.10)
 
@@ -471,17 +551,17 @@ The lowest weight, deliberately. This is where AI-authorship enters — as **one
 function authorProvenance(s: PRSignals): number {
   let v = 0;
   if (s.authorIsFirstTimeContributor) v += 0.5;
-  if (s.authorRevertRate > 0.15)      v += 0.3;
-  if (s.likelyAIAuthored)             v += 0.4;   // additive, small weight
+  if (s.authorRevertRate > 0.15) v += 0.3;
+  if (s.likelyAIAuthored) v += 0.4; // additive, small weight
   return clamp(v);
 }
 ```
 
 **Why AI-authorship is weighted at 0.08 × 0.4 ≈ 3.2 points maximum, and why that is correct:**
 
-PocketReview is **source-agnostic**. We do not claim AI code is worse. We observe that AI-authored PRs have *different review characteristics* — larger, more numerous, less context in the description — and those characteristics are already captured by dimensions ①–⑥. Provenance is a small corroborating nudge, not a verdict.
+PocketReview is **source-agnostic**. We do not claim AI code is worse. We observe that AI-authored PRs have _different review characteristics_ — larger, more numerous, less context in the description — and those characteristics are already captured by dimensions ①–⑥. Provenance is a small corroborating nudge, not a verdict.
 
-This is the answer when a judge asks *"what about human-written PRs?"* — and they will.
+This is the answer when a judge asks _"what about human-written PRs?"_ — and they will.
 
 ### Bounded modifiers
 
@@ -489,12 +569,28 @@ Applied after the weighted sum. Each is capped, logged, and shown in the UI:
 
 ```ts
 const MODIFIERS: Modifier[] = [
-  { when: s => s.ciStatus === "failing",          delta: +8,  label: "CI is failing" },
-  { when: s => s.reviewState === "approved",      delta: -15, label: "Already approved by a reviewer" },
-  { when: s => s.isDraft,                         delta: -20, label: "Draft PR" },
-  { when: s => s.isHotfix,                        delta: +10, label: "Targets a hotfix/release branch" },
-  { when: s => s.files.every(f => f.isGenerated), delta: -25, label: "Generated files only" },
-  { when: s => s.files.every(f => f.category === "docs"), delta: -30, label: "Documentation only" },
+  { when: (s) => s.ciStatus === "failing", delta: +8, label: "CI is failing" },
+  {
+    when: (s) => s.reviewState === "approved",
+    delta: -15,
+    label: "Already approved by a reviewer",
+  },
+  { when: (s) => s.isDraft, delta: -20, label: "Draft PR" },
+  {
+    when: (s) => s.isHotfix,
+    delta: +10,
+    label: "Targets a hotfix/release branch",
+  },
+  {
+    when: (s) => s.files.every((f) => f.isGenerated),
+    delta: -25,
+    label: "Generated files only",
+  },
+  {
+    when: (s) => s.files.every((f) => f.category === "docs"),
+    delta: -30,
+    label: "Documentation only",
+  },
 ];
 ```
 
@@ -508,7 +604,7 @@ Not every repo yields every signal. A public repo without CI, or a shallow clone
 confidence = availableSignalWeight / totalSignalWeight
 ```
 
-Below 0.6, the UI shows *"Limited signals — history unavailable"* rather than silently pretending. **Showing confidence honestly is a credibility feature, not a weakness.** A judge who spots a system hiding missing data trusts nothing else it says.
+Below 0.6, the UI shows _"Limited signals — history unavailable"_ rather than silently pretending. **Showing confidence honestly is a credibility feature, not a weakness.** A judge who spots a system hiding missing data trusts nothing else it says.
 
 ### Levels
 
@@ -527,15 +623,15 @@ Thresholds are configurable per repo, because a payments monorepo and a docs sit
 
 **Risk answers "how much attention does this need?" Priority answers "what should I open right now?"** These are different questions, and conflating them is the most common mistake in this problem space.
 
-A critical PR that is already approved and blocked on CI is *not* the thing to open next. A medium-risk PR blocking four other PRs and two days old *is*.
+A critical PR that is already approved and blocked on CI is _not_ the thing to open next. A medium-risk PR blocking four other PRs and two days old _is_.
 
 ```ts
 priority =
-    0.40 * riskNormalised          // severity of attention needed
-  + 0.20 * urgency                 // labels: incident, P0, security, hotfix
-  + 0.15 * ageDecay                // staleness — anti-starvation
-  + 0.15 * blockingImpact          // how many PRs/people are waiting
-  + 0.10 * reviewerAvailability    // penalise if suggested reviewer is loaded
+  0.4 * riskNormalised + // severity of attention needed
+  0.2 * urgency + // labels: incident, P0, security, hotfix
+  0.15 * ageDecay + // staleness — anti-starvation
+  0.15 * blockingImpact + // how many PRs/people are waiting
+  0.1 * reviewerAvailability; // penalise if suggested reviewer is loaded
 ```
 
 ### Anti-starvation
@@ -544,7 +640,7 @@ A pure risk sort starves low-risk PRs forever — they sit at the bottom of the 
 
 ```ts
 function ageDecay(hours: number): number {
-  return clamp(Math.pow(hours / 72, 1.5));   // 72h → 1.0, then clamped
+  return clamp(Math.pow(hours / 72, 1.5)); // 72h → 1.0, then clamped
 }
 ```
 
@@ -567,7 +663,7 @@ The output is a stable, ranked queue. **Stable matters:** the same 17 PRs produc
 
 `src/lib/engines/reviewer-engine.ts`
 
-Answers: *given these files, who is the right human?*
+Answers: _given these files, who is the right human?_
 
 ```
                     ┌─────────────────────────┐
@@ -592,9 +688,9 @@ Result:
 ```ts
 export interface ReviewerMatch {
   login: string;
-  score: number;              // 0-1
-  reasons: string[];          // "14 commits to src/auth/ in the last 90 days"
-  currentLoad: number;        // open reviews assigned
+  score: number; // 0-1
+  reasons: string[]; // "14 commits to src/auth/ in the last 90 days"
+  currentLoad: number; // open reviews assigned
   isCodeowner: boolean;
 }
 ```
@@ -625,9 +721,9 @@ On a single-contributor repository this engine returns one name with low confide
 
 **This is the feature that distinguishes PocketReview from every "PR dashboard" in existence, and it should be the last thing shown in the demo.**
 
-Every other tool answers *"here are your PRs, sorted."* PocketReview answers a question a human actually has:
+Every other tool answers _"here are your PRs, sorted."_ PocketReview answers a question a human actually has:
 
-> *"I have 30 minutes before my next meeting. What should I do?"*
+> _"I have 30 minutes before my next meeting. What should I do?"_
 
 ### Effort estimation
 
@@ -635,13 +731,13 @@ Priority ordering is useless without knowing what each item costs. The estimator
 
 ```ts
 minutes =
-    3                                    // fixed context-switch cost
-  + 0.045 * reviewableLines              // ~22 lines/min careful reading
-  + 1.2   * realFilesChanged             // per-file orientation cost
-  + 6     * criticalDomainsCount         // auth/payments demand slower reading
-  + 4     * (hasNoTests ? 1 : 0)         // must reason about correctness unaided
-  + 2     * newDependencies
-  - 0.5   * (testRatio > 0.5 ? 1 : 0) * reviewableLines / 100   // good tests speed review
+  3 + // fixed context-switch cost
+  0.045 * reviewableLines + // ~22 lines/min careful reading
+  1.2 * realFilesChanged + // per-file orientation cost
+  6 * criticalDomainsCount + // auth/payments demand slower reading
+  4 * (hasNoTests ? 1 : 0) + // must reason about correctness unaided
+  2 * newDependencies -
+  (0.5 * (testRatio > 0.5 ? 1 : 0) * reviewableLines) / 100; // good tests speed review
 ```
 
 Clamped to `[2, 90]` and rounded to the nearest minute. Calibrated against real merged PRs (see [§16](#16-validation-strategy)).
@@ -668,9 +764,9 @@ export interface ReviewPlan {
   budgetMinutes: number;
   items: PlanItem[];
   totalMinutes: number;
-  coveredRisk: number;        // % of total queue risk addressed
-  deferred: DeferredItem[];   // with reason: "needs 24 min, 6 remaining"
-  warnings: string[];         // "1 critical PR does not fit in this budget"
+  coveredRisk: number; // % of total queue risk addressed
+  deferred: DeferredItem[]; // with reason: "needs 24 min, 6 remaining"
+  warnings: string[]; // "1 critical PR does not fit in this budget"
 }
 ```
 
@@ -715,11 +811,11 @@ export async function explainRisk(
 ): Promise<Explanation>;
 
 export interface Explanation {
-  oneLine: string;          // deck card summary, ≤ 90 chars
-  whatChanged: string;      // 2-3 sentences, behavioural not textual
-  whyItMatters: string;     // grounded in risk.topReasons
+  oneLine: string; // deck card summary, ≤ 90 chars
+  whatChanged: string; // 2-3 sentences, behavioural not textual
+  whyItMatters: string; // grounded in risk.topReasons
   whereToLookFirst: string[]; // ranked file:line pointers
-  questionsToAsk: string[];   // what the reviewer should verify
+  questionsToAsk: string[]; // what the reviewer should verify
 }
 ```
 
@@ -748,7 +844,7 @@ files sorted by (pathWeight × linesChanged), generated excluded
   → append "N further files omitted: <names>"
 ```
 
-The LLM therefore reads the auth change, not the lockfile. Small detail; enormous quality difference; excellent answer to *"how do you handle large PRs?"*
+The LLM therefore reads the auth change, not the lockfile. Small detail; enormous quality difference; excellent answer to _"how do you handle large PRs?"_
 
 ### Performance
 
@@ -760,7 +856,7 @@ The LLM therefore reads the auth change, not the lockfile. Small detail; enormou
 
 ### Voice mode
 
-Web Speech API (`speechSynthesis`) reads `oneLine + whatChanged + whyItMatters`. Zero backend cost, no extra dependency. Positioned as **hands-free triage on a commute** — a genuine accessibility and context feature, explicitly *not* the headline innovation.
+Web Speech API (`speechSynthesis`) reads `oneLine + whatChanged + whyItMatters`. Zero backend cost, no extra dependency. Positioned as **hands-free triage on a commute** — a genuine accessibility and context feature, explicitly _not_ the headline innovation.
 
 ---
 
@@ -770,7 +866,7 @@ Web Speech API (`speechSynthesis`) reads `oneLine + whatChanged + whyItMatters`.
 
 The safety layer. Its existence is a technical argument, and it pre-empts the sharpest question a judge can ask.
 
-**Rule: a fast-track swipe is a recommendation, never a merge.** The gate can only *remove* eligibility; it can never grant it.
+**Rule: a fast-track swipe is a recommendation, never a merge.** The gate can only _remove_ eligibility; it can never grant it.
 
 ```
      swipe right (fast-track)
@@ -797,9 +893,9 @@ The safety layer. Its existence is a technical argument, and it pre-empts the sh
   fast-track    + shown reason
 ```
 
-**In the hackathon build, fast-track produces a marked queue and an optional GitHub *comment* — it does not call the approve or merge API.** That is a deliberate product decision, not a missing feature, and saying so plainly is stronger than pretending otherwise.
+**In the hackathon build, fast-track produces a marked queue and an optional GitHub _comment_ — it does not call the approve or merge API.** That is a deliberate product decision, not a missing feature, and saying so plainly is stronger than pretending otherwise.
 
-The pitch line: *"We never let an AI approve code written by an AI. We only decide which human sees it first."*
+The pitch line: _"We never let an AI approve code written by an AI. We only decide which human sees it first."_
 
 ---
 
@@ -841,12 +937,12 @@ export interface TriageRecord {
   repo: string;
   number: number;
   action: TriageAction;
-  riskAtDecision: number;    // audit trail: what the score was when decided
+  riskAtDecision: number; // audit trail: what the score was when decided
   timestamp: number;
 }
 ```
 
-`riskAtDecision` exists so the queue can later surface *"you fast-tracked this at risk 18; it has since changed and is now 61."* Cheap to store, and it demonstrates that the system is designed for a real workflow rather than a single demo run.
+`riskAtDecision` exists so the queue can later surface _"you fast-tracked this at risk 18; it has since changed and is now 61."_ Cheap to store, and it demonstrates that the system is designed for a real workflow rather than a single demo run.
 
 ---
 
@@ -892,7 +988,7 @@ GET  /api/capacity?repo=owner/name
 
 ## 14. Frontend architecture
 
-### Principle: the phone must show *less*, not the same thing smaller
+### Principle: the phone must show _less_, not the same thing smaller
 
 GitHub-on-mobile already exists and it is unpleasant. Our advantage is that the reviewer sees a **decision-shaped summary** instead of a diff. Every element on the card must serve a triage decision; anything that does not is removed.
 
@@ -949,12 +1045,12 @@ Every number on this card is either measured or computed. The only generated tex
 
 ### Swipe semantics
 
-| Gesture | Action | Effect |
-|---|---|---|
-| **→ right** | Fast-track | Policy gate evaluated. If eligible, queued as fast-track candidate. **Never merges.** |
-| **← left** | Needs review | Marked for deep review, reviewer suggested, added to the plan. |
-| **↑ up** | Explain | Opens the explanation screen; optional voice playback. |
-| **↓ down** | Defer | Snoozed with a reason; resurfaces via age decay. |
+| Gesture     | Action       | Effect                                                                                |
+| ----------- | ------------ | ------------------------------------------------------------------------------------- |
+| **→ right** | Fast-track   | Policy gate evaluated. If eligible, queued as fast-track candidate. **Never merges.** |
+| **← left**  | Needs review | Marked for deep review, reviewer suggested, added to the plan.                        |
+| **↑ up**    | Explain      | Opens the explanation screen; optional voice playback.                                |
+| **↓ down**  | Defer        | Snoozed with a reason; resurfaces via age decay.                                      |
 
 If the policy gate vetoes a right-swipe, the card **does not leave the deck** — it flips to show the veto reason. The system visibly refusing its own recommendation is a strong live demo moment.
 
@@ -1067,7 +1163,7 @@ pocketreview/
 
 ## 16. Validation strategy
 
-Judges will ask *"how do you know the score is right?"* Most teams answer *"the AI decides."* That answer ends the conversation badly. Ours is a number.
+Judges will ask _"how do you know the score is right?"_ Most teams answer _"the AI decides."_ That answer ends the conversation badly. Ours is a number.
 
 ### Reframe the claim
 
@@ -1155,13 +1251,13 @@ Compare `effortMinutes` against real review durations (`PR created → first rev
 
 ### Failure modes — all designed for, none fatal
 
-| Failure | Behaviour |
-|---|---|
-| GitHub rate limited | Serve from L2 cache, banner shows staleness |
+| Failure             | Behaviour                                                       |
+| ------------------- | --------------------------------------------------------------- |
+| GitHub rate limited | Serve from L2 cache, banner shows staleness                     |
 | No network at venue | `DEMO_MODE=1` serves `fixtures/` — full app, real captured data |
-| LLM unavailable | Deck fully functional; explanations show "unavailable" |
+| LLM unavailable     | Deck fully functional; explanations show "unavailable"          |
 | Git history missing | Instability dimension drops out, `confidence` falls, UI says so |
-| No CODEOWNERS | Reviewer engine falls back to commit history only |
+| No CODEOWNERS       | Reviewer engine falls back to commit history only               |
 
 **`DEMO_MODE` is not cheating — it is the difference between a demo and a story about a demo.** Capture real PRs from a real repo, commit them, and be able to run with the wifi unplugged.
 
@@ -1182,42 +1278,52 @@ Compare `effortMinutes` against real review durations (`PR created → first rev
 Ordered so that **every phase ends with something demonstrable.** If time runs out, you stop at a phase boundary and still have a coherent product.
 
 ### Phase 0 — Foundation
+
 Branding, config schema, `math.ts`, types, Octokit client, `.env` wiring.
 **Ends with:** PR list rendering from the GitHub API.
 
 ### Phase 1 — Signal Layer ⭐
+
 `collect.ts`, `github.ts`, `classify.ts`, path rules. Generated-file exclusion.
 **Ends with:** `/api/prs/:repo/:number/signals` returns a full measured object.
 
-### Phase 2 — Risk Engine ⭐⭐⭐ *(the core)*
+### Phase 2 — Risk Engine ⭐⭐⭐ _(the core)_
+
 All 7 dimensions, modifiers, confidence. Unit tests including the one-line-auth-change case.
 **Ends with:** every PR carries an explainable score. **This alone is a credible project.**
 
 ### Phase 3 — Deck & risk UI ⭐⭐
+
 Rebuilt card, risk badge, ranked reasons, dimension breakdown screen.
 **Ends with:** the demo is visually complete and technically defensible.
 
 ### Phase 4 — Priority + Effort ⭐⭐
+
 Priority engine, anti-starvation, effort estimator.
 **Ends with:** the queue is ordered by what to open next, with costs attached.
 
-### Phase 5 — Review Plan ⭐⭐⭐ *(the differentiator)*
+### Phase 5 — Review Plan ⭐⭐⭐ _(the differentiator)_
+
 Knapsack DP, budget picker, capacity panel.
 **Ends with:** the closing moment of the demo exists.
 
 ### Phase 6 — Explanation Layer ⭐⭐
+
 Anthropic SDK, diff prioritisation, caching, streaming, voice.
 **Ends with:** cards speak plain English; hands-free mode works.
 
 ### Phase 7 — Reviewer Engine ⭐
+
 Expertise matrix from git history, load balancing.
-**Ends with:** "who should review this" — *cut this first if time is short.*
+**Ends with:** "who should review this" — _cut this first if time is short._
 
 ### Phase 8 — Policy Gate + Eval ⭐⭐⭐
+
 Gate rules, veto UI, `eval/run-eval.ts`, committed results.
 **Ends with:** the numbers that win the Q&A.
 
 ### Phase 9 — Hardening
+
 `DEMO_MODE`, fixtures, error states, mobile polish, README.
 
 ### Ruthless cut order if time runs short
@@ -1236,30 +1342,30 @@ The last line is the whole strategy. **Those three are the project; everything e
 
 ## 20. Demo script
 
-Four minutes, in this order. The order is deliberate — build credibility *before* showing the flashy part, so the swipe reads as engineering rather than novelty.
+Four minutes, in this order. The order is deliberate — build credibility _before_ showing the flashy part, so the swipe reads as engineering rather than novelty.
 
-**0:00 — The number.** Open on the capacity panel. *"17 PRs. 2 hours 47 minutes of review work. This reviewer has 1 hour 35. This deficit is the entire problem, and it grows every day."*
+**0:00 — The number.** Open on the capacity panel. _"17 PRs. 2 hours 47 minutes of review work. This reviewer has 1 hour 35. This deficit is the entire problem, and it grows every day."_
 
-**0:30 — The deck.** Swipe two low-risk PRs in three seconds. *"That's the interaction. It isn't the innovation."*
+**0:30 — The deck.** Swipe two low-risk PRs in three seconds. _"That's the interaction. It isn't the innovation."_
 
-**1:00 — The one that matters.** A **one-line** diff in an auth file, scored CRITICAL. *"Three lines. Tests pass. Any size-based tool ranks this trivial. Ours ranks it top of the queue."*
+**1:00 — The one that matters.** A **one-line** diff in an auth file, scored CRITICAL. _"Three lines. Tests pass. Any size-based tool ranks this trivial. Ours ranks it top of the queue."_
 
-**1:30 — Show your working.** Open the dimension breakdown. Point at contributions summing exactly to the score. *"No LLM produced this number. It is arithmetic over measured signals, and it is identical on every run."*
+**1:30 — Show your working.** Open the dimension breakdown. Point at contributions summing exactly to the score. _"No LLM produced this number. It is arithmetic over measured signals, and it is identical on every run."_
 
-**2:15 — The refusal.** Swipe right on a risky PR; the policy gate vetoes it live and the card flips. *"The system refuses its own fast-track. We never let an AI approve code written by an AI."*
+**2:15 — The refusal.** Swipe right on a risky PR; the policy gate vetoes it live and the card flips. _"The system refuses its own fast-track. We never let an AI approve code written by an AI."_
 
-**2:45 — The plan.** Set the budget to 30 minutes. *"Not a sorted list — a knapsack solved exactly, maximising risk coverage inside the time you actually have. Three PRs, 29 minutes, 71% of queue risk addressed."*
+**2:45 — The plan.** Set the budget to 30 minutes. _"Not a sorted list — a knapsack solved exactly, maximising risk coverage inside the time you actually have. Three PRs, 29 minutes, 71% of queue risk addressed."_
 
-**3:30 — The evidence.** The eval slide. *"412 real merged PRs. Recall@10 of 78% versus 41% for a lines-changed baseline."*
+**3:30 — The evidence.** The eval slide. _"412 real merged PRs. Recall@10 of 78% versus 41% for a lines-changed baseline."_
 
-**3:50 — The line.** *"We don't review your code. We decide where your attention goes."*
+**3:50 — The line.** _"We don't review your code. We decide where your attention goes."_
 
 ---
 
 ## 21. Judge Q&A defence
 
 **"Why 87? Where does that number come from?"**
-Seven weighted dimensions over measured signals. Open the breakdown — the contributions sum to 87. No LLM touches the number; it is the same on every run. *(This is why the dimension screen exists.)*
+Seven weighted dimensions over measured signals. Open the breakdown — the contributions sum to 87. No LLM touches the number; it is the same on every run. _(This is why the dimension screen exists.)_
 
 **"Isn't this just lines-changed with extra steps?"**
 No — and here is the counter-example. Show the one-line auth change scoring 74. Domain criticality is size-independent by construction. Then the eval: +37 points of recall over exactly that baseline.
@@ -1268,13 +1374,13 @@ No — and here is the counter-example. Show the one-line auth change scoring 74
 It cannot approve anything. Worst case is a misordered queue — the reviewer still sees every PR. The policy gate makes critical-path fast-tracking structurally impossible, not merely discouraged.
 
 **"GitHub could build this."**
-GitHub optimises the *individual review*. We optimise *allocation across the queue*. Different problem, different data model — we need cross-PR history, expertise, and effort estimation, none of which live in a single PR view.
+GitHub optimises the _individual review_. We optimise _allocation across the queue_. Different problem, different data model — we need cross-PR history, expertise, and effort estimation, none of which live in a single PR view.
 
 **"What about human-written PRs?"**
 Fully source-agnostic. AI provenance is one signal at 8% weight contributing at most ~3 points. AI is what made the queue explode; it is not what the system judges.
 
 **"Your risk model is just heuristics."**
-Correct, and deliberately so. Heuristics are auditable, tunable per repo, and explainable to the human being asked to trust them. A learned model on hackathon-scale data would be less accurate *and* unexplainable. We validated the heuristics against real historical outcomes — that is what `eval/` is.
+Correct, and deliberately so. Heuristics are auditable, tunable per repo, and explainable to the human being asked to trust them. A learned model on hackathon-scale data would be less accurate _and_ unexplainable. We validated the heuristics against real historical outcomes — that is what `eval/` is.
 
 **"How does this scale to a 500-PR monorepo?"**
 Signals are `headSha`-cached, so steady-state cost is only newly-pushed PRs. The expertise matrix is built once per repo. The plan solver is `O(n · budget)` — milliseconds at n=500.

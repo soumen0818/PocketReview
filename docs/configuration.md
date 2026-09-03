@@ -10,11 +10,11 @@ PocketReview runs with no configuration file. Every default is production-qualit
 
 ## Environment variables
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `GITHUB_TOKEN` | **Yes** | Read-only token (`repo:read`). No merge or approve call exists in the codebase. |
-| `ANTHROPIC_API_KEY` | No | Powers the explanation chat. Every score, ranking and breakdown works without it. |
-| `DEMO_MODE` | No | `1` or `true` serves fixtures instead of live GitHub data. No network needed. |
+| Variable            | Required | Purpose                                                                           |
+| ------------------- | -------- | --------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`      | **Yes**  | Read-only token (`repo:read`). No merge or approve call exists in the codebase.   |
+| `ANTHROPIC_API_KEY` | No       | Powers the explanation chat. Every score, ranking and breakdown works without it. |
+| `DEMO_MODE`         | No       | `1` or `true` serves fixtures instead of live GitHub data. No network needed.     |
 
 ```bash
 # .env.local — minimal
@@ -53,7 +53,7 @@ thresholds:
   medium: 50
   high: 75
 
-policy:                        # ⚠️ parsed, not yet enforced — Phase 8
+policy: # ⚠️ parsed, not yet enforced — Phase 8
   fastTrackMaxRisk: 25
   neverFastTrack: [auth, payments, database]
   requireCiPassing: true
@@ -75,9 +75,9 @@ Maps file paths to a category and a criticality weight `0.0–1.0`. This table d
 
 ```yaml
 paths:
-  - category: auth           # a FileCategory (see below)
-    weight: 1.0              # 0.0-1.0; 1.0 = maximum criticality
-    patterns:                # case-insensitive regex strings
+  - category: auth # a FileCategory (see below)
+    weight: 1.0 # 0.0-1.0; 1.0 = maximum criticality
+    patterns: # case-insensitive regex strings
       - "identity"
       - "sso"
 ```
@@ -99,7 +99,7 @@ Rules are evaluated **in order; first match wins**. Your rules are inserted afte
 This ordering is deliberate and load-bearing:
 
 - **`generated` is unconditionally first.** A lockfile is a lockfile even if its path contains "auth". This is what keeps a 4,000-line lockfile out of the high-risk band.
-- **`test` beats your domain rules.** Otherwise adding tests to auth code would *raise* its risk — backwards, and visible (Decision Log #4).
+- **`test` beats your domain rules.** Otherwise adding tests to auth code would _raise_ its risk — backwards, and visible (Decision Log #4).
 - **Your rules outrank the built-in domain rules**, so you can reclassify `src/api/legacy/` without restating the generated-file and test detection.
 
 An invalid regex is skipped rather than failing the whole config.
@@ -112,18 +112,18 @@ An invalid regex is skipped rather than failing the whole config.
 
 ### Default weights
 
-| Category | Weight | Matches |
-|---|---:|---|
-| `auth` | **1.00** | auth, session, token, login, oauth, permission, rbac |
-| `payments` | **1.00** | payment, billing, checkout, stripe, invoice, subscription |
-| `database` | 0.85 | migration, schema, `.sql`, prisma, `models/` |
-| `infra` | 0.75 | Dockerfile, `.github/workflows`, terraform, k8s, helm, deploy |
-| `api` | 0.70 | `routes/`, `controllers/`, `api/`, `handlers/`, graphql |
-| `config` | 0.55 | config, `.env`, settings |
-| `ui` | 0.30 | components, pages, styles |
-| `test` | 0.10 | `.test.`, `.spec.`, `__tests__`, `tests/` |
-| `docs` | 0.05 | `.md`, `docs/` |
-| `generated` | **0.00** | `*.lock`, `*-lock.json`, `.snap`, `dist/`, `build/` |
+| Category    |   Weight | Matches                                                       |
+| ----------- | -------: | ------------------------------------------------------------- |
+| `auth`      | **1.00** | auth, session, token, login, oauth, permission, rbac          |
+| `payments`  | **1.00** | payment, billing, checkout, stripe, invoice, subscription     |
+| `database`  |     0.85 | migration, schema, `.sql`, prisma, `models/`                  |
+| `infra`     |     0.75 | Dockerfile, `.github/workflows`, terraform, k8s, helm, deploy |
+| `api`       |     0.70 | `routes/`, `controllers/`, `api/`, `handlers/`, graphql       |
+| `config`    |     0.55 | config, `.env`, settings                                      |
+| `ui`        |     0.30 | components, pages, styles                                     |
+| `test`      |     0.10 | `.test.`, `.spec.`, `__tests__`, `tests/`                     |
+| `docs`      |     0.05 | `.md`, `docs/`                                                |
+| `generated` | **0.00** | `*.lock`, `*-lock.json`, `.snap`, `dist/`, `build/`           |
 
 **Weight 0.7 is the critical threshold.** At or above it, a file counts toward the `criticalLines` mass term and triggers the `critical-path` floor. That makes `auth`, `payments`, `database` and `api` "critical paths" by default.
 
@@ -135,13 +135,14 @@ An invalid regex is skipped rather than failing the whole config.
 
 ```yaml
 thresholds:
-  low: 25      # score <  25            → low
-  medium: 50   # score >= 25, < 50      → medium
-  high: 75     # score >= 50, < 75      → high
-               # score >= 75            → critical
+  low: 25 # score <  25            → low
+  medium: 50 # score >= 25, < 50      → medium
+  high:
+    75 # score >= 50, < 75      → high
+    # score >= 75            → critical
 ```
 
-Note the mapping in `toLevel()`: `score >= thresholds.high` is **critical**, `>= thresholds.medium` is **high**. The key names the lower bound of the band *above* the one it is named for.
+Note the mapping in `toLevel()`: `score >= thresholds.high` is **critical**, `>= thresholds.medium` is **high**. The key names the lower bound of the band _above_ the one it is named for.
 
 A payments monorepo and a docs site should not share a scale:
 
@@ -163,8 +164,8 @@ Thresholds change **banding only**, never the score. A PR scoring 55 always scor
 
 ```yaml
 policy:
-  fastTrackMaxRisk: 25                     # max score still eligible
-  neverFastTrack: [auth, payments, database]  # categories that never qualify
+  fastTrackMaxRisk: 25 # max score still eligible
+  neverFastTrack: [auth, payments, database] # categories that never qualify
   requireCiPassing: true
   blockOnDependencyChange: true
   blockOnTestRemoval: true
@@ -191,7 +192,7 @@ llm:
 ## `historyWindowDays`
 
 ```yaml
-historyWindowDays: 90   # default
+historyWindowDays: 90 # default
 ```
 
 Lookback for churn, revert rate and incident detection — the **historical instability** dimension.
@@ -259,4 +260,4 @@ The breakdown screen shows `signalsUsed` per dimension — the fastest way to co
 
 ---
 
-*Verified against the source on 2026-09-03.*
+_Verified against the source on 2026-09-03._

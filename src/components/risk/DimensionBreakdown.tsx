@@ -76,7 +76,9 @@ export default function DimensionBreakdown({
               {risk.score}
             </span>
           </div>
-          <p className={`mt-1.5 text-[11px] leading-relaxed ${style.text} opacity-80`}>
+          <p
+            className={`mt-1.5 text-[11px] leading-relaxed ${style.text} opacity-80`}
+          >
             Computed from {risk.dimensions.length} weighted signals. No language
             model is involved — the same input always produces this same number.
           </p>
@@ -88,7 +90,8 @@ export default function DimensionBreakdown({
           <div className="mt-2 bg-white rounded-xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
             {risk.dimensions.map((dimension) => {
               const maxPoints = dimension.weight * 100;
-              const fill = maxPoints > 0 ? (dimension.contribution / maxPoints) * 100 : 0;
+              const fill =
+                maxPoints > 0 ? (dimension.contribution / maxPoints) * 100 : 0;
               const inactive = dimension.contribution < 0.05;
 
               return (
@@ -210,10 +213,10 @@ export default function DimensionBreakdown({
 
           {risk.floor !== null && (
             <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-              A floor raises the score for facts a weighted average would
-              dilute — a one-line change to authentication is not
-              &ldquo;20% risky&rdquo;, it is a change a human must look at.
-              Floors can only raise a score, never lower it.
+              A floor raises the score for facts a weighted average would dilute
+              — a one-line change to authentication is not &ldquo;20%
+              risky&rdquo;, it is a change a human must look at. Floors can only
+              raise a score, never lower it.
             </p>
           )}
         </section>
@@ -296,7 +299,11 @@ function Row({
     <div className="flex items-center justify-between gap-3">
       <span
         className={`font-sans text-[12px] flex items-center gap-1.5 ${
-          bold ? "font-semibold text-gray-900" : muted ? "text-gray-500" : "text-gray-600"
+          bold
+            ? "font-semibold text-gray-900"
+            : muted
+              ? "text-gray-500"
+              : "text-gray-600"
         }`}
       >
         {icon}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Minus, FileText, ChevronRight } from "lucide-react";
+import { Plus, Minus, FileText, ChevronRight, Clock } from "lucide-react";
 import RiskBadge from "./risk/RiskBadge";
 import RiskReasons from "./risk/RiskReasons";
 import { levelStyle, timeAgo, shortRepo } from "@/lib/risk-display";
@@ -87,7 +87,29 @@ export default function PRCard({ pr, onShowBreakdown, style }: PRCardProps) {
             {pr.changedFiles} file{pr.changedFiles === 1 ? "" : "s"}
           </span>
         )}
+
+        {/* What this costs to review — the number the plan is built from. */}
+        <span
+          className="flex items-center gap-1 text-gray-600 font-medium ml-auto"
+          title={pr.effort.terms
+            .map(
+              (t) => `${t.label}: ${t.minutes > 0 ? "+" : ""}${t.minutes} min`,
+            )
+            .join("\n")}
+        >
+          <Clock size={11} />
+          {pr.effort.label}
+        </span>
       </div>
+
+      {/* Why this is where it is in the queue. */}
+      {pr.priority.suppressionReasons.includes("ci-failing") && (
+        <div className="mx-4 mt-2 px-2 py-1 rounded bg-amber-50 border border-amber-200 text-[10px] text-amber-700 shrink-0">
+          {pr.priority.demoted
+            ? "CI failing — author still iterating"
+            : "CI failing — still critical, kept in place"}
+        </div>
+      )}
 
       {/* Why — the part that earns the score */}
       <div className="px-4 py-3 flex-1 min-h-0 overflow-y-auto">

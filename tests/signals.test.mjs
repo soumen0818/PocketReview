@@ -86,7 +86,10 @@ test("test files beat domain rules — auth tests are tests", () => {
 
 test("generated beats every other rule", () => {
   // A lockfile inside an auth directory is still generated noise.
-  assert.equal(classifyPath("src/auth/package-lock.json").category, "generated");
+  assert.equal(
+    classifyPath("src/auth/package-lock.json").category,
+    "generated",
+  );
 });
 
 test("docs score near zero", () => {
@@ -230,9 +233,24 @@ test("test removal only counts alongside production changes", () => {
 
 test("criticality outranks size when ranking patches", () => {
   const files = [
-    { path: "package-lock.json", categoryWeight: 0, additions: 4000, deletions: 0 },
-    { path: "src/auth/token.ts", categoryWeight: 1.0, additions: 12, deletions: 3 },
-    { path: "src/ui/button.tsx", categoryWeight: 0.3, additions: 200, deletions: 0 },
+    {
+      path: "package-lock.json",
+      categoryWeight: 0,
+      additions: 4000,
+      deletions: 0,
+    },
+    {
+      path: "src/auth/token.ts",
+      categoryWeight: 1.0,
+      additions: 12,
+      deletions: 3,
+    },
+    {
+      path: "src/ui/button.tsx",
+      categoryWeight: 0.3,
+      additions: 200,
+      deletions: 0,
+    },
   ];
 
   const ranked = rankPatchesByConsequence(files);
@@ -247,8 +265,18 @@ test("criticality outranks size when ranking patches", () => {
 
 test("size breaks ties within a criticality tier", () => {
   const files = [
-    { path: "src/auth/small.ts", categoryWeight: 1.0, additions: 5, deletions: 0 },
-    { path: "src/auth/large.ts", categoryWeight: 1.0, additions: 300, deletions: 20 },
+    {
+      path: "src/auth/small.ts",
+      categoryWeight: 1.0,
+      additions: 5,
+      deletions: 0,
+    },
+    {
+      path: "src/auth/large.ts",
+      categoryWeight: 1.0,
+      additions: 300,
+      deletions: 20,
+    },
   ];
 
   const ranked = rankPatchesByConsequence(files);

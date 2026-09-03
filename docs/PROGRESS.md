@@ -13,35 +13,35 @@ Single source of truth for what is built, what is pending, and what was delibera
   Phase 1  Signal Layer               ██████████  100%   ✅ done
   Phase 2  Risk Engine                ██████████  100%   ✅ done
   Phase 3  Deck & risk UI             ██████████  100%   ✅ done
-  Phase 4  Priority & effort          ░░░░░░░░░░    0%   ⬅ NEXT
-  Phase 5  Review plan                ░░░░░░░░░░    0%
-  Phase 6  Explanation layer          ░░░░░░░░░░    0%
+  Phase 4  Priority & effort          ██████████  100%   ✅ done
+  Phase 5  Review plan                ██████████  100%   ✅ done
+  Phase 6  Explanation layer          ░░░░░░░░░░    0%   ⬅ NEXT
   Phase 7  Reviewer engine            ░░░░░░░░░░    0%   ⚠ first to cut
   Phase 8  Policy gate & eval         ░░░░░░░░░░    0%
   Phase 9  Hardening & demo           ░░░░░░░░░░    0%
 ```
 
-**Health:** 74/74 tests pass · typecheck clean · production build succeeds
+**Health:** 131/131 tests pass · typecheck clean · production build succeeds
 
 ### The demo table — measured, reproducible
 
-| Scenario | Lines | PocketReview | Lines-changed baseline |
-|---|---:|---:|---:|
-| One-line auth change | 2 | **55** · high | 0 |
-| 4,000-line lockfile | 5,000 | **0** · low | 100 |
-| Docs typo fix | 10 | **0** · low | 1 |
-| Auth + payments rewrite | 660 | **89** · critical | 66 |
+| Scenario                | Lines |      PocketReview | Lines-changed baseline |
+| ----------------------- | ----: | ----------------: | ---------------------: |
+| One-line auth change    |     2 |     **55** · high |                      0 |
+| 4,000-line lockfile     | 5,000 |       **0** · low |                    100 |
+| Docs typo fix           |    10 |       **0** · low |                      1 |
+| Auth + payments rewrite |   660 | **89** · critical |                     66 |
 
 The baseline ranks the lockfile at 100 and the auth change at 0 — exactly inverted.
 Reproduce: `npm test` (see `tests/risk-engine.test.mjs`).
 
-### Never cut — these three *are* the project
+### Never cut — these three _are_ the project
 
-| | Phase | Why |
-|---|---|---|
-| 🔴 | **Risk Engine** (2) | Without it this is a list with a swipe gesture |
-| 🔴 | **Review Plan** (5) | The only feature no competitor has |
-| 🔴 | **Eval harness** (8) | Turns an assertion into a measured result |
+|     | Phase                | Why                                            |
+| --- | -------------------- | ---------------------------------------------- |
+| 🔴  | **Risk Engine** (2)  | Without it this is a list with a swipe gesture |
+| ✅  | **Review Plan** (5)  | The only feature no competitor has — **built** |
+| 🔴  | **Eval harness** (8) | Turns an assertion into a measured result      |
 
 ---
 
@@ -67,6 +67,7 @@ Reproduce: `npm test` (see `tests/risk-engine.test.mjs`).
 Measurement only. No judgement, no scores.
 
 ### Core modules
+
 - [x] [math.ts](src/lib/math.ts) — `clamp`, `saturate`, `normalisedEntropy`, `weightedMean`, `decay`
 - [x] [signals/types.ts](src/lib/signals/types.ts) — `PRSignals` (~70 fields), `SignalAvailability`, confidence model
 - [x] [signals/path-rules.ts](src/lib/signals/path-rules.ts) — ordered rule table, weights 0.0–1.0
@@ -78,6 +79,7 @@ Measurement only. No judgement, no scores.
 - [x] [config.ts](src/lib/config.ts) — `.pocketreview.yml` loader with defaults
 
 ### Infrastructure migration
+
 - [x] Replace `gh` CLI subprocess layer with Octokit HTTP
 - [x] Bounded concurrency (6 parallel) on all fan-out
 - [x] Delete `src/lib/gh.ts`
@@ -88,6 +90,7 @@ Measurement only. No judgement, no scores.
 - [x] [.env.example](.env.example)
 
 ### Signals implemented
+
 - [x] Size & shape — additions, deletions, files, entropy, largest change
 - [x] Classification — auth / payments / database / infra / api / config / ui / test / docs / generated
 - [x] Test posture — ratio, `hasNoTests`, `testsRemoved`
@@ -100,10 +103,12 @@ Measurement only. No judgement, no scores.
 - [x] Urgency — age, labels, draft, hotfix branch, blocking
 
 ### Endpoint
+
 - [x] `GET /api/prs/:repo/:number/signals` — the "show your working" data
 - [x] `GET /api/prs` migrated off the CLI
 
 ### Tests — 29 passing
+
 - [x] Path classification incl. precedence (test beats auth, generated beats all)
 - [x] CODEOWNERS parsing and last-match-wins
 - [x] Diff splitting, complexity, dependency counting
@@ -120,11 +125,13 @@ Measurement only. No judgement, no scores.
 **Done when:** the one-line auth change scores high, the 4,000-line lockfile scores near zero, and the breakdown is inspectable. — **met, see the demo table above.**
 
 ### Scaffolding
+
 - [x] [engines/types.ts](src/lib/engines/types.ts) — `RiskAssessment`, `DimensionResult`, `Modifier`
 - [x] [engines/risk-engine.ts](src/lib/engines/risk-engine.ts) — orchestrator, weighted sum, floors, clamping
 - [x] Load-time assertion that weights sum to 1.00
 
 ### The seven dimensions
+
 - [x] [blast-radius.ts](src/lib/engines/dimensions/blast-radius.ts) (0.20) — spread, volume, entropy, cross-cutting
 - [x] [domain-criticality.ts](src/lib/engines/dimensions/domain-criticality.ts) (0.20) — **size-independent, verified by test**
 - [x] [test-posture.ts](src/lib/engines/dimensions/test-posture.ts) (0.15) — ratio tiers; removal forces 1.0
@@ -134,11 +141,13 @@ Measurement only. No judgement, no scores.
 - [x] [author-provenance.ts](src/lib/engines/dimensions/author-provenance.ts) (0.08) — first-timer, reverts, AI hints
 
 ### Modifiers — bounded, ±30 total
+
 - [x] CI failing `+8` · hotfix `+10` · urgent label `+6`
 - [x] Approved `−15` · draft `−20` · generated-only `−25` · docs-only `−30`
 - [x] Aggregate cap enforced and tested
 
 ### Floors — added during implementation
+
 - [x] Critical path + no tests → floor 55
 - [x] Critical path → floor 40
 - [x] Tests removed → floor 35
@@ -146,6 +155,7 @@ Measurement only. No judgement, no scores.
 - [x] Floor and its reason surfaced in `RiskAssessment` and `topReasons`
 
 ### Output
+
 - [x] Confidence from `SignalAvailability`; `lowConfidence` flag below 0.6
 - [x] Level thresholds from config
 - [x] `topReasons` ranked by contribution
@@ -153,10 +163,12 @@ Measurement only. No judgement, no scores.
 - [x] `baselineScore()` — the lines-changed scorer the eval harness beats
 
 ### Endpoints
+
 - [x] `GET /api/prs/:repo/:number/risk` — full assessment + breakdown
 - [x] `/signals` now returns `risk` and `baseline` alongside the measurements
 
 ### Tests — 33, all passing
+
 - [x] **One-line auth change scores 55 (high)** ← demo centrepiece
 - [x] **4,000-line lockfile scores 0 (low)** ← the classic false positive
 - [x] Tiny auth change outranks huge lockfile; baseline gets it backwards
@@ -183,11 +195,13 @@ Measurement only. No judgement, no scores.
 **Done when:** the deck ranks by score, every card shows why, and the breakdown proves the number. — **met, verified end to end in demo mode.**
 
 ### Data model
+
 - [x] [types.ts](src/lib/types.ts) — `TriagedPR`, `TriageRecord`, `QueueSummary`
 - [x] `riskAtDecision` on every triage record — the audit trail
 - [x] [risk-display.ts](src/lib/risk-display.ts) — shared level tokens, `timeAgo`, `shortRepo`
 
 ### Components
+
 - [x] [RiskBadge.tsx](src/components/risk/RiskBadge.tsx) — score, band, bar, confidence warning
 - [x] [RiskReasons.tsx](src/components/risk/RiskReasons.tsx) — ranked, with overflow count
 - [x] [DimensionBreakdown.tsx](src/components/risk/DimensionBreakdown.tsx) — **the credibility screen**
@@ -196,6 +210,7 @@ Measurement only. No judgement, no scores.
 - [x] [SwipeDeck.tsx](src/components/SwipeDeck.tsx) — `TriagedPR`, breakdown threaded through
 
 ### The breakdown screen
+
 - [x] Per-dimension raw, weight, contribution, reasons, signals read
 - [x] Fill bar shows proportion of each dimension's own ceiling
 - [x] "How the score adds up" — dimensions → modifiers → floor → final
@@ -205,6 +220,7 @@ Measurement only. No judgement, no scores.
 - [x] Signal-confidence panel with honest wording
 
 ### Wiring
+
 - [x] `/api/prs` returns scored, ranked `TriagedPR[]` plus a `QueueSummary`
 - [x] `?signals=1` ships the full signal set for zero-round-trip audits
 - [x] [usePRs.ts](src/hooks/usePRs.ts) — queue + summary, client-side triage filter
@@ -214,11 +230,13 @@ Measurement only. No judgement, no scores.
 - [x] `line-clamp-2` in globals.css (no plugin needed)
 
 ### Demo mode — pulled forward from Phase 9
+
 - [x] [demo/fixtures.ts](src/lib/demo/fixtures.ts) — 7 hand-built PRs
 - [x] `DEMO_MODE=1` swaps the **data source only** — fixtures run the real engine
 - [x] Covers: tiny-critical, huge-worthless, emergency, well-tested, trivial, low-confidence
 
 ### Verification
+
 - [x] `DEMO_MODE=1 npm run dev` → page 200, no error overlay
 - [x] `/api/prs` returns the ranked queue with correct summary
 - [x] Low-confidence path exercised live (#156 at 50%)
@@ -226,6 +244,7 @@ Measurement only. No judgement, no scores.
 - [ ] Mobile layout eyeballed at 390×844 — **needs a human, do this before the demo**
 
 ### Tests — 12 added
+
 - [x] Every level has a complete, visually distinct style
 - [x] `timeAgo` at each scale; `shortRepo`
 - [x] Demo queue spans ≥ 3 levels incl. critical and low
@@ -238,35 +257,127 @@ Measurement only. No judgement, no scores.
 
 ---
 
-## Phase 4 — Priority & effort
+## Phase 4 — Priority & effort ✅
 
 **Goal:** the queue is ordered by what to open next, with a cost attached to each item.
 
-- [ ] `engines/priority-engine.ts` — risk 0.40 · urgency 0.20 · age 0.15 · blocking 0.15 · availability 0.10
-- [ ] Age decay `(h/72)^1.5` — anti-starvation
-- [ ] Suppression: drafts, approved, own PRs; demote failing CI
-- [ ] `engines/effort-estimator.ts` — linear model, clamp `[2,90]`
-- [ ] Stable ordering — same queue, same order, every load
-- [ ] Tests: starvation, stability, suppression, effort bounds
+**Done when:** the deck opens on the thing that actually matters, and every card
+carries its review cost. — **met, verified live in demo mode.**
+
+### Priority engine
+
+- [x] [priority-engine.ts](src/lib/engines/priority-engine.ts) — risk 0.49 · urgency 0.22 · blocking 0.17 · age 0.12
+- [x] Weight-sum assertion at module load, mirroring the risk engine
+- [x] Age decay `(h/72)^1.5`, capped at 0.7 raw — anti-starvation
+- [x] Urgency from labels + linked issue labels + hotfix branch
+- [x] Blocking impact, saturating at 3 blocked PRs
+- [x] Suppression: drafts (toggleable via `?drafts=1`), approved, own PRs
+- [x] Failing CI demotes — **except when critical**
+- [x] `rankQueue()` — total, stable order; PR number breaks ties
+- [x] Own-PR suppression via `getViewerLogin()`, cached, never fatal
+
+### Effort estimator
+
+- [x] [effort-estimator.ts](src/lib/engines/effort-estimator.ts) — transparent linear model, clamp `[2,90]`
+- [x] Generated files excluded — a 4,000-line lockfile costs ~3 min, not 90
+- [x] Distinct critical _domains_, not files — context switching is the cost
+- [x] Per-term breakdown on every estimate, for the Phase 5 plan view
+- [x] `formatDuration()` — "2h 19m" for the capacity panel
+
+### Wiring
+
+- [x] `/api/prs` ranks by priority and drops suppressed PRs
+- [x] `countBlocked()` — resolves blocking across the queue via base/head branches
+- [x] `QueueSummary` carries `totalMinutes`, `minutesByLevel`, `suppressed`
+- [x] [PRCard.tsx](src/components/PRCard.tsx) — effort with per-term tooltip, CI-failing banner
+- [x] [QueueSummaryBar.tsx](src/components/QueueSummaryBar.tsx) — "2h 19m of review"
+
+### Verification
+
+- [x] `DEMO_MODE=1` → critical payments rewrite first, typo last, page 200
+- [x] 109/109 tests · typecheck clean · production build passes
+- [ ] Mobile layout at 390×844 — **still needs a human**
+
+### Tests — 35 added
+
+- [x] Weights sum to 1.00; contributions sum to score; no term exceeds its cap
+- [x] Deterministic across 50 runs; score always an integer in `[0,100]`
+- [x] Age decay superlinear below the cap, flat above it
+- [x] **A stale low-risk PR outranks a fresh one** (anti-starvation works)
+- [x] **Age alone never outranks a genuinely risky PR** ← caught a real bug
+- [x] Drafts / approved / own-PR suppression; suppression ignores the score
+- [x] Failing CI demotes — **but never a critical PR** ← caught a real bug
+- [x] Demoted PRs sink below healthy ones, but a critical red-CI PR stays put
+- [x] `rankQueue` stable under input shuffling; ties break on PR number
+- [x] Effort within `[2,90]`; lockfile ≈ 3 min; critical domains cost more
+- [x] Distinct domains cost more than repeats of one; tests cut cost
 
 ---
 
-## Phase 5 — Review plan · 🔴 never cut
+## Phase 5 — Review plan ✅ · 🔴 never cut
 
 **Goal:** the closing moment of the demo exists.
 
-- [ ] `engines/review-plan.ts` — exact 0/1 knapsack DP, `O(n·budget)`
-- [ ] Force-include criticals when a single one fits
-- [ ] Order highest-risk first within the plan
-- [ ] `coveredRisk` percentage
-- [ ] `deferred[]` with per-item reason
-- [ ] `warnings[]` when a critical PR cannot fit
-- [ ] `POST /api/review-plan`
-- [ ] `GET /api/capacity` — the deficit panel
-- [ ] `components/plan/ReviewPlan.tsx` + `BudgetPicker` + `CapacityPanel`
-- [ ] `app/plan/page.tsx`
-- [ ] **Test: DP result matches brute force on small inputs** ← proves exactness
-- [ ] Test: budget never exceeded
+**Done when:** "I have 30 minutes" produces an exact, ordered, explainable
+plan. — **met, verified live at 15 / 30 / 90 min budgets.**
+
+### The solver
+
+- [x] [review-plan.ts](src/lib/engines/review-plan.ts) — exact 0/1 knapsack DP, `O(n·budget)`
+- [x] Full DP table kept so the chosen set reconstructs exactly
+- [x] Force-include criticals — **cheapest-first, so the most fit**
+- [x] Remaining budget still optimised around the forced set
+- [x] Order highest-risk first — reviewer is freshest at the start
+- [x] `coveredRisk` percentage; `cumulativeMinutes` per item
+- [x] `deferred[]` with a per-item reason ("needs 24 min, 6 remaining")
+- [x] `warnings[]` naming the shortfall when a critical cannot fit
+- [x] Budget clamped `[5, 480]`; zero-cost and over-budget items filtered
+- [x] Identity is `repo#number`, so same-numbered PRs across repos stay distinct
+
+### Capacity analytics
+
+- [x] `capacityReport()` — minutes per level, deficit, load factor
+- [x] Capacity is the **reviewer's own budget**, not an invented team roster
+- [x] Deficit floors at 0; zero capacity does not divide by zero
+
+### Endpoints
+
+- [x] `POST /api/review-plan` — validates body, 400s on bad input
+- [x] `GET /api/review-plan` — self-documents rather than 405-ing
+- [x] `GET /api/capacity` — the deficit panel, `?capacity=` minutes
+- [x] Both reuse priority suppression: drafts and approved PRs never scheduled
+
+### UI
+
+- [x] [ReviewPlan.tsx](src/components/plan/ReviewPlan.tsx) — ordered plan, forced badge, coverage line
+- [x] [BudgetPicker.tsx](src/components/plan/BudgetPicker.tsx) — 15/30/45/60/90 presets, `radiogroup` a11y
+- [x] [CapacityPanel.tsx](src/components/plan/CapacityPanel.tsx) — bars by _minutes_, deficit callout
+- [x] [app/plan/page.tsx](src/app/plan/page.tsx) — budget → capacity → plan
+- [x] [useReviewPlan.ts](src/hooks/useReviewPlan.ts) — refetches on budget change, **discards superseded responses**
+- [x] Plan reachable from the deck header
+
+### Verification
+
+- [x] 90 min → critical forced in, 88/90 used, **70.4% of queue risk covered**
+- [x] 30 min → 3 PRs, 25 min, honest warning that the critical needs 66
+- [x] 15 min → degrades to 1 PR rather than pretending
+- [x] `/plan` renders 200; both 400 paths return clear messages
+- [x] 131/131 tests · typecheck clean · production build passes
+- [ ] Mobile layout at 390×844 — **still needs a human**
+
+### Tests — 22 added
+
+- [x] **DP matches brute force across 200 random instances** ← proves exactness
+- [x] Beats the greedy ratio trap (36 vs 30 on the classic counter-example)
+- [x] Budget never exceeded, across 50 randomised queues
+- [x] Budget clamping; item larger than budget never included; empty queue safe
+- [x] Critical included even when the optimiser would drop it, and marked forced
+- [x] As many criticals fit as possible, cheapest-first
+- [x] Unfittable criticals warned about with the shortfall named
+- [x] Highest-risk-first ordering; ties break on PR number; cumulative minutes
+- [x] `coveredRisk` correct, and 0 rather than NaN on a zero-risk queue
+- [x] Deterministic across 30 runs; input order does not change the plan
+- [x] Capacity rows, deficit floor, zero-capacity divide guard
 
 ---
 
@@ -292,7 +403,7 @@ Measurement only. No judgement, no scores.
 
 Build only if 2, 5 and 8 are genuinely finished.
 
-**Why it's first to cut:** needs multi-contributor history to produce distinct output. On a single-author repo every card names the same person, which reads as *broken* and casts doubt on the working components beside it.
+**Why it's first to cut:** needs multi-contributor history to produce distinct output. On a single-author repo every card names the same person, which reads as _broken_ and casts doubt on the working components beside it.
 
 - [ ] `engines/reviewer-engine.ts` — ownership 0.30 · recency 0.20 · review history 0.25 · codeowner 0.15 · load 0.10
 - [ ] Cache the expertise matrix to `.pocketreview/expertise.json`
@@ -305,7 +416,8 @@ Build only if 2, 5 and 8 are genuinely finished.
 ## Phase 8 — Policy gate & eval · 🔴 eval never cut
 
 ### Policy gate
-- [ ] `policy/gate.ts` — can only *remove* eligibility, never grant it
+
+- [ ] `policy/gate.ts` — can only _remove_ eligibility, never grant it
 - [ ] Rules: risk threshold, CI, critical paths, deps, test removal, protected files
 - [ ] `POST /api/triage` — persists the decision, performs no merge
 - [ ] Card flip-state showing the veto reason
@@ -313,6 +425,7 @@ Build only if 2, 5 and 8 are genuinely finished.
 - [ ] Live demo: swipe right on the auth PR → visible refusal
 
 ### Eval harness 🔴
+
 - [ ] `eval/dataset.ts` — mine merged PRs, label from outcomes
 - [ ] Labels: reverted · fix within 7d · changes-requested · >3 rounds · in later hotfix
 - [ ] `eval/run-eval.ts` — Recall@K, Precision@K, NDCG
@@ -341,21 +454,27 @@ Build only if 2, 5 and 8 are genuinely finished.
 
 Things a judge may ask about. Each is a deliberate choice, not an accident.
 
-| # | Decision | Why |
-|---|---|---|
-| 1 | Score computed in code; LLM only narrates | Makes *"why 87?"* answerable. Turn the LLM off and the system still works. |
-| 2 | Octokit replaces `gh` CLI | ~800ms per subprocess spawn; 90 fetches ≈ 72s serial vs ~2.3s parallel HTTP. Also removes the demo-machine setup dependency. |
-| 3 | Approve endpoint deleted | Directly contradicted the thesis. Our pitch is a trust deficit; solving it by having AI approve AI code argues against ourselves. |
-| 4 | Test files beat domain rules | Otherwise adding tests to auth code *raises* its risk. Backwards, and visible. |
-| 5 | Generated files excluded from size scoring | A 4,000-line lockfile must never read as high risk. The most common naive-scoring false positive. |
-| 6 | Patch ranking: criticality dominates, size breaks ties | Multiplying let a 200-line UI file (0.3×200) outrank a 15-line auth change (1.0×15). **Caught by a test.** |
-| 7 | AI provenance needs ≥2 hints, weighted 0.08 | Max ~3 points of 100. Source-agnostic — answers *"what about human-written PRs?"* |
-| 8 | Confidence reported honestly | A system hiding missing data can't be trusted about anything else. |
-| 9 | Reviewer engine is first to cut | Same name on every card reads as broken and poisons the components next to it. |
-| 10 | KPI is Recall@K, not "time saved" | Time saved needs a control group that doesn't exist. Recall@K is measurable from history that already happened. |
-| 11 | Floors added on top of the weighted sum | A weighted sum *averages*, and averaging is wrong for categorical facts. With six of seven dimensions structurally near-zero for a tiny diff, a maximally critical one-line change capped at ~35/100 — it would have been buried in the queue. A floor only ever raises, is bounded, names its reason, and doesn't distort large PRs the way reweighting would. **Found by the demo test failing at 30.** |
-| 12 | `baselineScore()` ships in the engine | The lines-changed scorer lives beside the real one so the comparison is runnable, not asserted. It is what Phase 8's headline number is measured against. |
-| 13 | Demo mode swaps the data source, never the scoring | Fixtures run through the real engine, so the offline demo shows what the scorer genuinely produces. A demo with pre-computed scores would prove nothing and would break the moment a judge asked to change an input. |
+| #   | Decision                                                          | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Score computed in code; LLM only narrates                         | Makes _"why 87?"_ answerable. Turn the LLM off and the system still works.                                                                                                                                                                                                                                                                                                                                                                              |
+| 2   | Octokit replaces `gh` CLI                                         | ~800ms per subprocess spawn; 90 fetches ≈ 72s serial vs ~2.3s parallel HTTP. Also removes the demo-machine setup dependency.                                                                                                                                                                                                                                                                                                                            |
+| 3   | Approve endpoint deleted                                          | Directly contradicted the thesis. Our pitch is a trust deficit; solving it by having AI approve AI code argues against ourselves.                                                                                                                                                                                                                                                                                                                       |
+| 4   | Test files beat domain rules                                      | Otherwise adding tests to auth code _raises_ its risk. Backwards, and visible.                                                                                                                                                                                                                                                                                                                                                                          |
+| 5   | Generated files excluded from size scoring                        | A 4,000-line lockfile must never read as high risk. The most common naive-scoring false positive.                                                                                                                                                                                                                                                                                                                                                       |
+| 6   | Patch ranking: criticality dominates, size breaks ties            | Multiplying let a 200-line UI file (0.3×200) outrank a 15-line auth change (1.0×15). **Caught by a test.**                                                                                                                                                                                                                                                                                                                                              |
+| 7   | AI provenance needs ≥2 hints, weighted 0.08                       | Max ~3 points of 100. Source-agnostic — answers _"what about human-written PRs?"_                                                                                                                                                                                                                                                                                                                                                                       |
+| 8   | Confidence reported honestly                                      | A system hiding missing data can't be trusted about anything else.                                                                                                                                                                                                                                                                                                                                                                                      |
+| 9   | Reviewer engine is first to cut                                   | Same name on every card reads as broken and poisons the components next to it.                                                                                                                                                                                                                                                                                                                                                                          |
+| 10  | KPI is Recall@K, not "time saved"                                 | Time saved needs a control group that doesn't exist. Recall@K is measurable from history that already happened.                                                                                                                                                                                                                                                                                                                                         |
+| 11  | Floors added on top of the weighted sum                           | A weighted sum _averages_, and averaging is wrong for categorical facts. With six of seven dimensions structurally near-zero for a tiny diff, a maximally critical one-line change capped at ~35/100 — it would have been buried in the queue. A floor only ever raises, is bounded, names its reason, and doesn't distort large PRs the way reweighting would. **Found by the demo test failing at 30.**                                               |
+| 12  | `baselineScore()` ships in the engine                             | The lines-changed scorer lives beside the real one so the comparison is runnable, not asserted. It is what Phase 8's headline number is measured against.                                                                                                                                                                                                                                                                                               |
+| 13  | Demo mode swaps the data source, never the scoring                | Fixtures run through the real engine, so the offline demo shows what the scorer genuinely produces. A demo with pre-computed scores would prove nothing and would break the moment a judge asked to change an input.                                                                                                                                                                                                                                    |
+| 14  | Age weighted 0.12, not a proportional 0.17, and capped at 0.7 raw | Age is the only term every PR accrues _for free_ — no risk, no urgency, nothing waiting on it. At 0.17 the arithmetic inverted the thesis: a week-old typo fix scored 23.7 against 24.2 for a fresh one-line auth change. A queue where staleness rivals criticality is the failure this project exists to fix. Age still lifts a stale PR ~8 points past its equally-boring neighbours, which is all anti-starvation needs to do. **Found by a test.** |
+| 15  | Failing CI never demotes a _critical_ PR                          | Demotion encodes "the author will push again, don't spend attention yet". True for a routine change; false for a critical one. In demo mode the critical payments rewrite (risk 82) sank to the bottom of the queue under six trivial PRs — the exact misallocation the product exists to prevent. Demotion now applies within a severity tier. **Found by running the demo queue, not by a test.**                                                     |
+| 16  | Priority's 5th term redistributed, not stubbed                    | `reviewerAvailability` (0.10) needs the Phase 7 reviewer engine. Letting it contribute zero would cap every score at 0.90 and make the breakdown lie; a constant 1.0 would compress every score into the top 10%. Redistributing across the four computable terms keeps the weight-sum assertion honest, and Phase 7 reclaims it.                                                                                                                       |
+| 17  | Criticals reserved cheapest-first, not risk-first                 | "Force-include criticals" is ambiguous once several exist and not all fit. Reserving by risk lets one expensive critical crowd out two slightly-less-critical ones that would both have fit. Cheapest-first maximises how many criticals actually get reviewed, which is what the guarantee is for. Any that still do not fit are named in `warnings` rather than silently dropped.                                                                     |
+| 18  | Capacity is the reviewer's own budget, not an inferred roster     | The deficit panel needs an "available" figure. Deriving one from CODEOWNERS × assumed minutes/day would look sophisticated and be fabricated — exactly the number that collapses under a judge's follow-up. The budget picker value is a figure the reviewer controls and can vouch for.                                                                                                                                                                |
+| 19  | Exact DP, never a greedy ratio sort                               | At n ≤ 50 with integer minutes the table is microseconds, so approximating buys nothing. A test pins the DP against brute force over 200 random instances; a second shows greedy losing 36-to-30 on the classic counter-example. "We solve it exactly" survives questioning; "we sort by ratio" does not.                                                                                                                                               |
 
 ---
 
@@ -363,7 +482,7 @@ Things a judge may ask about. Each is a deliberate choice, not an accident.
 
 ```bash
 npm run dev         # dev server, port 3000
-npm test            # 29 tests, offline
+npm test            # 131 tests, offline
 npm run typecheck   # tsc --noEmit
 npm run build       # production build
 npm run eval        # Phase 8 — not yet implemented
@@ -383,4 +502,4 @@ A phase is complete when:
 
 ---
 
-*Last verified: 2026-09-02 — Phase 3 complete, 74/74 tests, verified live in DEMO_MODE.*
+_Last verified: 2026-09-03 — Phase 5 complete, 131/131 tests, verified live in DEMO_MODE._

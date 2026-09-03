@@ -12,7 +12,7 @@ Every change is measured against these. Breaking one is not a bug to fix later �
 
 ### 1. The score is computed in code. The LLM only narrates it.
 
-No model output may ever influence a number, a rank, or a decision. If an LLM produced the score, *"why 87?"* has no answer.
+No model output may ever influence a number, a rank, or a decision. If an LLM produced the score, _"why 87?"_ has no answer.
 
 **Test:** turn the LLM off. Every score, ranking and breakdown must still work.
 
@@ -56,7 +56,7 @@ npm run build       # production build
 npm run format      # prettier
 ```
 
-All four must pass. A phase task is only `[x]` when it is written, typechecking, tested where testable, and building. *"Written but unverified" is `[~]`.*
+All four must pass. A phase task is only `[x]` when it is written, typechecking, tested where testable, and building. _"Written but unverified" is `[~]`._
 
 ---
 
@@ -91,7 +91,7 @@ import type { PRSignals } from "../../signals/types";
 import type { Dimension, DimensionOutput } from "../types";
 
 export const myDimension: Dimension = {
-  id: "my-dimension",          // add to DimensionId in engines/types.ts
+  id: "my-dimension", // add to DimensionId in engines/types.ts
   name: "My dimension",
   weight: 0.05,
 
@@ -117,14 +117,16 @@ Add to `DIMENSIONS` in [risk-engine.ts](../src/lib/engines/risk-engine.ts) — t
 - **Exclude generated files** from anything size-based.
 - **Exclude test files** from criticality — otherwise adding tests raises risk.
 - **`signalsUsed` must be accurate.** It is the audit trail.
-- **Reasons are user-facing.** They appear verbatim on the card. Concrete and quotable beats generic: *"`src/payments/charge.ts` was reverted twice in the last 90 days"* — not *"file has history."*
+- **Reasons are user-facing.** They appear verbatim on the card. Concrete and quotable beats generic: _"`src/payments/charge.ts` was reverted twice in the last 90 days"_ — not _"file has history."_
 - **Never read the network or the clock.** Determinism is tested across 50 runs.
 
 ### 5. Test it
 
 ```js
 test("my-dimension fires on X", () => {
-  const signals = makeSignals({ /* only what this dimension reads */ });
+  const signals = makeSignals({
+    /* only what this dimension reads */
+  });
   const output = myDimension.evaluate(signals);
   assert.ok(output.raw > 0.8);
   assert.ok(output.reasons.length > 0);
@@ -137,7 +139,7 @@ Then re-run the structural tests — they catch weight-sum mistakes instantly.
 
 ## Adding a modifier or a floor
 
-**Modifier** — a bounded ± adjustment for a fact that is *not a matter of degree* (CI either fails or it does not). Add to `MODIFIER_RULES`. The aggregate stays capped at ±30, so no combination can dominate.
+**Modifier** — a bounded ± adjustment for a fact that is _not a matter of degree_ (CI either fails or it does not). Add to `MODIFIER_RULES`. The aggregate stays capped at ±30, so no combination can dominate.
 
 **Floor** — a minimum score for a categorical fact that averaging would dilute. Add to `FLOOR_RULES`. A floor may only **raise** a score, must state its reason, and must be suppressed for drafts and approved PRs.
 
@@ -147,7 +149,7 @@ Then re-run the structural tests — they catch weight-sum mistakes instantly.
 
 ## Adding a path rule
 
-Usually configuration, not code — see [configuration.md](./configuration.md#paths--path-rules). Change the built-in table in [path-rules.ts](../src/lib/signals/path-rules.ts) only when the default is wrong for *most* repos.
+Usually configuration, not code — see [configuration.md](./configuration.md#paths--path-rules). Change the built-in table in [path-rules.ts](../src/lib/signals/path-rules.ts) only when the default is wrong for _most_ repos.
 
 Order matters. `generated` must stay first; `test` must stay ahead of domain rules.
 
@@ -181,7 +183,7 @@ Treat diffs as attacker-controllable. Model output is displayed, never executed 
 
 Match the surrounding code — it has a consistent voice worth preserving.
 
-- **Comments explain *why*, not *what*.** The existing modules are the reference: they justify decisions rather than narrating syntax.
+- **Comments explain _why_, not _what_.** The existing modules are the reference: they justify decisions rather than narrating syntax.
 - British spelling in prose and comments (`normalised`, `behaviour`).
 - Prettier decides formatting; don't hand-format.
 - Named exports for functions, default exports for components.

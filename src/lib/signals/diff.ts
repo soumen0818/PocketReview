@@ -148,7 +148,8 @@ export function countDependencyChanges(patch: string): {
 
   const entry = /^\s*["']?[\w@/.-]+["']?\s*[:=]\s*["'][^"']+["']/;
   const isDependencyLine = (line: string) =>
-    entry.test(line) && !/^\s*["']?(name|version|description)["']?\s*[:=]/.test(line);
+    entry.test(line) &&
+    !/^\s*["']?(name|version|description)["']?\s*[:=]/.test(line);
 
   return {
     added: added.filter(isDependencyLine).length,
@@ -183,7 +184,12 @@ export function detectTestRemoval(
  * model would read the button component and never see the auth change.
  */
 export function rankPatchesByConsequence<
-  T extends { path: string; categoryWeight: number; additions: number; deletions: number },
+  T extends {
+    path: string;
+    categoryWeight: number;
+    additions: number;
+    deletions: number;
+  },
 >(files: T[]): T[] {
   // Bucket weights into coarse tiers so that near-equal criticality (0.70 vs
   // 0.75) is settled by size rather than by an arbitrary rule ordering.
@@ -204,11 +210,13 @@ const SECRET_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bAKIA[0-9A-Z]{16}\b/g, label: "AWS_KEY" },
   { pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g, label: "GOOGLE_KEY" },
   {
-    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+    pattern:
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
     label: "PRIVATE_KEY",
   },
   {
-    pattern: /\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["'][^"']{8,}["']/gi,
+    pattern:
+      /\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["'][^"']{8,}["']/gi,
     label: "CREDENTIAL",
   },
 ];

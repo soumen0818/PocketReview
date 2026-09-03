@@ -236,7 +236,11 @@ test("modifiers are capped in aggregate", () => {
 test("scores are always within 0..100", () => {
   const extremes = [
     dangerousChange(),
-    makeSignals({ isDraft: true, reviewState: "approved", existingApprovals: 3 }),
+    makeSignals({
+      isDraft: true,
+      reviewState: "approved",
+      existingApprovals: 3,
+    }),
     makeSignals({ files: [] }),
     lockfileOnlyChange(),
   ];
@@ -323,10 +327,7 @@ test("untested production code scores maximum on test posture", () => {
       files: [makeFile({ additions: 120, deletions: 0 })],
     }),
   );
-  assert.equal(
-    risk.dimensions.find((d) => d.id === "test-posture").raw,
-    1,
-  );
+  assert.equal(risk.dimensions.find((d) => d.id === "test-posture").raw, 1);
 });
 
 test("well-tested code scores low on test posture", () => {

@@ -11,7 +11,7 @@
 > **Risk = the probability this PR needs careful human attention.**
 > **Not** the probability it contains a bug.
 
-That distinction is the whole design. Predicting bugs is unsolved, and any system claiming to do it is lying. Ranking by *required attention* is tractable, measurable against history, and closer to the actual bottleneck.
+That distinction is the whole design. Predicting bugs is unsolved, and any system claiming to do it is lying. Ranking by _required attention_ is tractable, measurable against history, and closer to the actual bottleneck.
 
 Lead with this sentence when the score is challenged.
 
@@ -28,7 +28,7 @@ Lead with this sentence when the score is challenged.
 
 `assessRisk()` is a pure function. The same `PRSignals` yields the same `RiskAssessment` byte for byte — asserted across 50 runs by test. No network, no model, no clock.
 
-This is what makes *"why 87?"* answerable: the answer is a table of contributions that sums to 87 and is identical on every run.
+This is what makes _"why 87?"_ answerable: the answer is a table of contributions that sums to 87 and is identical on every run.
 
 ---
 
@@ -92,7 +92,7 @@ Each dimension is a pure function returning `{ raw: 0..1, reasons: string[], sig
 
 ### ① Blast Radius — 0.20
 
-[blast-radius.ts](../src/lib/engines/dimensions/blast-radius.ts) · *How much surface area does this touch?*
+[blast-radius.ts](../src/lib/engines/dimensions/blast-radius.ts) · _How much surface area does this touch?_
 
 ```
 reviewable = files where !isGenerated && !isTest
@@ -105,13 +105,13 @@ crossCut   = distinctCategories / 5
 raw = 0.35·fileSpread + 0.35·volume + 0.15·spread + 0.15·crossCut
 ```
 
-Generated and test files are excluded from the count *and* the line total.
+Generated and test files are excluded from the count _and_ the line total.
 
 ---
 
 ### ② Domain Criticality — 0.20
 
-[domain-criticality.ts](../src/lib/engines/dimensions/domain-criticality.ts) · *Where does the change land?*
+[domain-criticality.ts](../src/lib/engines/dimensions/domain-criticality.ts) · _Where does the change land?_
 
 ```
 relevant     = files where !isGenerated && !isTest
@@ -133,27 +133,27 @@ The split is **additive, not multiplicative** — deliberately. Multiplying woul
 
 Three lines. One file. Tests pass. Every size-based scorer calls this trivial.
 
-Tests are excluded here because they have their own dimension — otherwise *adding tests to auth code would raise its risk*, which is backwards and visible (Decision Log #4).
+Tests are excluded here because they have their own dimension — otherwise _adding tests to auth code would raise its risk_, which is backwards and visible (Decision Log #4).
 
-When `criticalLines <= 10` the dimension emits an extra reason — *"Small diffs in critical paths still require careful review"* — because size-independence is the property a reader is most likely to doubt.
+When `criticalLines <= 10` the dimension emits an extra reason — _"Small diffs in critical paths still require careful review"_ — because size-independence is the property a reader is most likely to doubt.
 
 ---
 
 ### ③ Test Posture — 0.15
 
-[test-posture.ts](../src/lib/engines/dimensions/test-posture.ts) · *Is this change defended by tests?*
+[test-posture.ts](../src/lib/engines/dimensions/test-posture.ts) · _Is this change defended by tests?_
 
 Tiered, not continuous — the meaningful distinctions are coarse.
 
-| Condition | `raw` |
-|---|---|
-| `testsRemoved` | **1.0** — overrides everything below |
-| `productionLinesAdded === 0` | 0 — docs, config or test-only |
-| `hasNoTests` | **1.0** |
-| `testRatio >= 0.5` | 0.10 — well covered |
-| `testRatio >= 0.25` | 0.35 — moderately covered |
-| `testRatio >= 0.1` | 0.60 — thin coverage |
-| otherwise | 0.85 — minimal coverage |
+| Condition                    | `raw`                                |
+| ---------------------------- | ------------------------------------ |
+| `testsRemoved`               | **1.0** — overrides everything below |
+| `productionLinesAdded === 0` | 0 — docs, config or test-only        |
+| `hasNoTests`                 | **1.0**                              |
+| `testRatio >= 0.5`           | 0.10 — well covered                  |
+| `testRatio >= 0.25`          | 0.35 — moderately covered            |
+| `testRatio >= 0.1`           | 0.60 — thin coverage                 |
+| otherwise                    | 0.85 — minimal coverage              |
 
 Test **removal** is a distinct signal from test **absence**, and it is checked first. It also triggers the `tests-removed` floor.
 
@@ -161,7 +161,7 @@ Test **removal** is a distinct signal from test **absence**, and it is checked f
 
 ### ④ Historical Instability — 0.15
 
-[historical-instability.ts](../src/lib/engines/dimensions/historical-instability.ts) · *What does this repo's own past say?*
+[historical-instability.ts](../src/lib/engines/dimensions/historical-instability.ts) · _What does this repo's own past say?_
 
 ```
 churn    = weightedMean(saturate(fileChurn[path], 15) for each file)
@@ -171,7 +171,7 @@ incident = priorIncidentFiles.length > 0 ? 1 : 0
 raw = 0.45·churn + 0.35·reverts + 0.20·incident
 ```
 
-The reason text is concrete and quotable: *"`src/payments/charge.ts` was reverted twice in the last 90 days."*
+The reason text is concrete and quotable: _"`src/payments/charge.ts` was reverted twice in the last 90 days."_
 
 When git history is unavailable this dimension returns 0 **and** `availability.history` is false, so confidence drops rather than the absence reading as safety. Covered by a test.
 
@@ -205,7 +205,7 @@ removed = clamp(dependenciesRemoved / 4)
 raw = 0.7·added + 0.3·removed + (added > 0 ? 0.3 : 0)
 ```
 
-The `+0.3` step exists because *any* new dependency is a supply-chain event, not a matter of degree.
+The `+0.3` step exists because _any_ new dependency is a supply-chain event, not a matter of degree.
 
 **Lockfile-only changes score near zero.** This is checked before the arithmetic and is the single most common false positive in naive diff scoring.
 
@@ -224,11 +224,11 @@ established author          -0.15
 
 **Why AI-authorship is capped at ~3.2 points of 100, and why that is correct.**
 
-PocketReview is **source-agnostic**. We do not claim AI code is worse. We observe that AI-authored PRs have *different review characteristics* — larger, more numerous, thinner descriptions — and dimensions ①–⑥ already capture those. Provenance is a corroborating nudge, never a verdict.
+PocketReview is **source-agnostic**. We do not claim AI code is worse. We observe that AI-authored PRs have _different review characteristics_ — larger, more numerous, thinner descriptions — and dimensions ①–⑥ already capture those. Provenance is a corroborating nudge, never a verdict.
 
 `likelyAIAuthored` requires **≥2 of 5** independent hints to fire (Decision Log #7). Two tests defend this: AI provenance moves the score by ≤4 points, and six of seven dimensions ignore authorship entirely.
 
-This is the answer when a judge asks *"what about human-written PRs?"* — and they will.
+This is the answer when a judge asks _"what about human-written PRs?"_ — and they will.
 
 ---
 
@@ -236,15 +236,15 @@ This is the answer when a judge asks *"what about human-written PRs?"* — and t
 
 For facts that are not matters of degree. Applied after the weighted sum; every one that fires is reported in the UI.
 
-| id | Δ | Fires when |
-|---|---:|---|
-| `ci-failing` | **+8** | `ciStatus === "failing"` |
-| `hotfix-branch` | **+10** | targets a release or hotfix branch |
-| `urgent-label` | **+6** | linked issue labelled incident/security |
-| `already-approved` | **−15** | approved with ≥1 approval |
-| `draft` | **−20** | `isDraft` |
-| `generated-only` | **−25** | every file is generated |
-| `docs-only` | **−30** | every file is docs or generated |
+| id                 |       Δ | Fires when                              |
+| ------------------ | ------: | --------------------------------------- |
+| `ci-failing`       |  **+8** | `ciStatus === "failing"`                |
+| `hotfix-branch`    | **+10** | targets a release or hotfix branch      |
+| `urgent-label`     |  **+6** | linked issue labelled incident/security |
+| `already-approved` | **−15** | approved with ≥1 approval               |
+| `draft`            | **−20** | `isDraft`                               |
+| `generated-only`   | **−25** | every file is generated                 |
+| `docs-only`        | **−30** | every file is docs or generated         |
 
 ```
 modifierDelta = clamp(Σ deltas, -30, +30)      // MODIFIER_CAP
@@ -257,27 +257,27 @@ scored        = clamp(baseScore + modifierDelta, 0, 100)
 
 ## ③ Floors — added during implementation
 
-> **Not in the original architecture.** Floors were added in Phase 2 because the demo test failed at 30 (Decision Log #11). This section documents *why*, because it is the most likely thing a reviewer will challenge.
+> **Not in the original architecture.** Floors were added in Phase 2 because the demo test failed at 30 (Decision Log #11). This section documents _why_, because it is the most likely thing a reviewer will challenge.
 
-**The problem.** A weighted sum *averages*, and averaging is wrong for categorical facts. For a maximally critical one-line auth change, six of seven dimensions are structurally near-zero — tiny blast radius, no complexity, no dependencies. The weighted sum caps it near **35/100** and buries it mid-queue.
+**The problem.** A weighted sum _averages_, and averaging is wrong for categorical facts. For a maximally critical one-line auth change, six of seven dimensions are structurally near-zero — tiny blast radius, no complexity, no dependencies. The weighted sum caps it near **35/100** and buries it mid-queue.
 
-But "a one-line change to authentication" is not *"20% of a risky PR."* It is a change a human must look at, full stop.
+But "a one-line change to authentication" is not _"20% of a risky PR."_ It is a change a human must look at, full stop.
 
-**The fix.** A floor can only *raise* a score, is bounded, and names its reason.
+**The fix.** A floor can only _raise_ a score, is bounded, and names its reason.
 
-| id | Floor | Applies when |
-|---|---:|---|
+| id                       |  Floor | Applies when                                                   |
+| ------------------------ | -----: | -------------------------------------------------------------- |
 | `critical-path-untested` | **55** | critical path touched **and** (`hasNoTests` or `testsRemoved`) |
-| `critical-path` | **40** | any critical path touched (auth, payments, database) |
-| `tests-removed` | **35** | tests removed alongside production changes |
+| `critical-path`          | **40** | any critical path touched (auth, payments, database)           |
+| `tests-removed`          | **35** | tests removed alongside production changes                     |
 
 The highest applicable floor wins.
 
 **Floors never apply to drafts or already-approved PRs** — both are explicitly outside the "needs attention now" question.
 
-**Why not just raise the criticality weight instead?** That would inflate *every* large PR touching a critical directory — a worse trade. The floor is surgical: it fixes exactly the diluted-small-change case and distorts nothing else.
+**Why not just raise the criticality weight instead?** That would inflate _every_ large PR touching a critical directory — a worse trade. The floor is surgical: it fixes exactly the diluted-small-change case and distorts nothing else.
 
-Floors are set at band boundaries on purpose: *"this must be at least `high`"* is a claim a reviewer can argue with, which is the point.
+Floors are set at band boundaries on purpose: _"this must be at least `high`"_ is a claim a reviewer can argue with, which is the point.
 
 **Reporting.** When a floor decides the score, its reason is prepended to `topReasons` and exposed as `floor` / `floorReasons`. Otherwise the number and the stated reasons would not add up — exactly the opacity this engine exists to avoid.
 
@@ -298,21 +298,21 @@ Configurable per repo — a payments monorepo and a docs site should not share a
 
 Not every repo yields every signal. Rather than substituting zeros silently, `SignalAvailability` records what was measurable:
 
-| Signal group | Weight |
-|---|---:|
-| `metadata` | 0.35 |
-| `history` | 0.20 |
-| `patches` | 0.15 |
-| `ci` | 0.10 |
-| `authorHistory` | 0.07 |
-| `reviews` | 0.08 |
-| `codeowners` | 0.05 |
+| Signal group    | Weight |
+| --------------- | -----: |
+| `metadata`      |   0.35 |
+| `history`       |   0.20 |
+| `patches`       |   0.15 |
+| `ci`            |   0.10 |
+| `authorHistory` |   0.07 |
+| `reviews`       |   0.08 |
+| `codeowners`    |   0.05 |
 
 ```
 confidence = Σ weights of available groups / Σ all weights
 ```
 
-Below **0.6**, `lowConfidence` is set and the UI says *"Limited signals — history unavailable."*
+Below **0.6**, `lowConfidence` is set and the UI says _"Limited signals — history unavailable."_
 
 **Showing confidence honestly is a credibility feature, not a weakness** (Decision Log #8). A system caught hiding missing data is trusted about nothing else.
 
@@ -332,12 +332,12 @@ The naive lines-changed model ships **inside the engine**, beside the real one, 
 
 Run `npm test` to reproduce ([tests/risk-engine.test.mjs](../tests/risk-engine.test.mjs)):
 
-| Scenario | Lines | PocketReview | Lines-changed baseline |
-|---|---:|---:|---:|
-| One-line auth change | 2 | **55** · high | 0 |
-| 4,000-line lockfile | 5,000 | **0** · low | 100 |
-| Docs typo fix | 10 | **0** · low | 1 |
-| Auth + payments rewrite | 660 | **89** · critical | 66 |
+| Scenario                | Lines |      PocketReview | Lines-changed baseline |
+| ----------------------- | ----: | ----------------: | ---------------------: |
+| One-line auth change    |     2 |     **55** · high |                      0 |
+| 4,000-line lockfile     | 5,000 |       **0** · low |                    100 |
+| Docs typo fix           |    10 |       **0** · low |                      1 |
+| Auth + payments rewrite |   660 | **89** · critical |                     66 |
 
 **The baseline ranks the lockfile at 100 and the auth change at 0 — exactly inverted.** That inversion is the demo.
 
@@ -375,10 +375,10 @@ See [contributing.md](./contributing.md#adding-a-risk-dimension).
 
 ## Validation 🕐 Phase 8
 
-Everything above is *internally* consistent and tested. Whether the ranking is *correct* is an empirical question answered by the eval harness — mine merged PRs, label attention-worthy outcomes from history, report Recall@K against the baseline.
+Everything above is _internally_ consistent and tested. Whether the ranking is _correct_ is an empirical question answered by the eval harness — mine merged PRs, label attention-worthy outcomes from history, report Recall@K against the baseline.
 
 See [architecture.md §16](../ARCHITECTURE.md#16-validation-strategy). **Until `eval/results.md` exists with real measured numbers, no accuracy claim should be made.**
 
 ---
 
-*Verified against the source on 2026-09-03 — Phase 2 complete, 74/74 tests passing.*
+_Verified against the source on 2026-09-03 — Phase 2 complete, 74/74 tests passing._

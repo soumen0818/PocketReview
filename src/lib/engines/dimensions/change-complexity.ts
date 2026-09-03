@@ -71,10 +71,15 @@ export const changeComplexity: Dimension = {
       if (result.deletionHeavy) deletionHeavyFiles++;
     }
 
-    const branching = saturate(Math.max(0, controlFlowDelta), CONTROL_FLOW_KNEE);
+    const branching = saturate(
+      Math.max(0, controlFlowDelta),
+      CONTROL_FLOW_KNEE,
+    );
     const functions = saturate(functionsAdded, FUNCTION_KNEE);
     const nesting = clamp(maxNesting / NESTING_KNEE);
-    const deletions = clamp(deletionHeavyFiles / Math.max(1, analysable.length));
+    const deletions = clamp(
+      deletionHeavyFiles / Math.max(1, analysable.length),
+    );
 
     const raw = clamp(
       0.35 * branching + 0.2 * functions + 0.2 * nesting + 0.25 * deletions,
@@ -85,9 +90,13 @@ export const changeComplexity: Dimension = {
     if (controlFlowDelta >= CONTROL_FLOW_KNEE) {
       reasons.push(`${controlFlowDelta} new branches or conditions`);
     } else if (controlFlowDelta > 0) {
-      reasons.push(`Adds ${controlFlowDelta} branch point${controlFlowDelta === 1 ? "" : "s"}`);
+      reasons.push(
+        `Adds ${controlFlowDelta} branch point${controlFlowDelta === 1 ? "" : "s"}`,
+      );
     } else if (controlFlowDelta < 0) {
-      reasons.push(`Removes ${-controlFlowDelta} branch point${controlFlowDelta === -1 ? "" : "s"} — simplification`);
+      reasons.push(
+        `Removes ${-controlFlowDelta} branch point${controlFlowDelta === -1 ? "" : "s"} — simplification`,
+      );
     }
 
     if (deletionHeavyFiles > 0) {

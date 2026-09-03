@@ -62,7 +62,8 @@ export const historicalInstability: Dimension = {
     const revertRates = relevant.map(
       (f) => signals.fileRevertRate[f.path] ?? 0,
     );
-    const peakRevertRate = revertRates.length > 0 ? Math.max(...revertRates) : 0;
+    const peakRevertRate =
+      revertRates.length > 0 ? Math.max(...revertRates) : 0;
     const reverts = clamp(peakRevertRate / REVERT_CEILING);
 
     const touchedIncidentFiles = relevant.filter((f) =>

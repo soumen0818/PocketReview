@@ -265,7 +265,9 @@ export function assessRisk(
   // the stated reasons would not add up, which is exactly the opacity this
   // engine exists to avoid.
   const topReasons = (
-    floorApplied ? [...applied.map((r) => r.label), ...dimensionReasons] : dimensionReasons
+    floorApplied
+      ? [...applied.map((r) => r.label), ...dimensionReasons]
+      : dimensionReasons
   ).slice(0, 5);
 
   // --- confidence ---
