@@ -1,926 +1,563 @@
-﻿# PocketReview — API Reference
+# PocketReview — API Reference
 
-> Complete reference for HTTP endpoints, TypeScript interfaces, internal function signatures, and data models.
-
----
-
-## Table of Contents
-
-1. [HTTP Endpoints](#1-http-endpoints)
-   - [GET /api/prs](#11-get-apiprs)
-   - [POST /api/chat](#12-post-apichat)
-2. [TypeScript Interfaces](#2-typescript-interfaces)
-   - [TriagedPR](#21-triagedpr)
-   - [RiskAssessment](#22-riskassessment)
-   - [DimensionResult](#23-dimensionresult)
-   - [Modifier](#24-modifier)
-   - [PRSignals](#25-prsignals)
-   - [QueueSummary](#26-queuesummary)
-   - [ChatMessage](#27-chatmessage)
-   - [AppConfig](#28-appconfig)
-3. [Internal Function Signatures](#3-internal-function-signatures)
-   - [Signal Layer](#31-signal-layer)
-   - [Engine Layer](#32-engine-layer)
-   - [AI Layer](#33-ai-layer)
-   - [Config Layer](#34-config-layer)
-   - [Math Utilities](#35-math-utilities)
-4. [Enumerations & Literals](#4-enumerations--literals)
-5. [Error Reference](#5-error-reference)
+> HTTP endpoints, TypeScript interfaces, and internal function signatures.
+>
+> **Status convention.** Every section is marked either ✅ **Shipped** — verified against the code at the path given — or 🕐 **Planned (Phase N)**, in which case the shape shown is the target contract from [architecture.md](../ARCHITECTURE.md) and **the endpoint does not exist yet**. See [PROGRESS.md](./PROGRESS.md) for the live phase status.
 
 ---
 
-## 1. HTTP Endpoints
+## Table of contents
 
-### 1.1 `GET /api/prs`
+1. [Endpoint map](#1-endpoint-map)
+2. [Shipped endpoints](#2-shipped-endpoints)
+   - [GET /api/prs](#21-get-apiprs)
+   - [GET /api/prs/:repo/:number/risk](#22-get-apiprsreponumberrisk)
+   - [GET /api/prs/:repo/:number/signals](#23-get-apiprsreponumbersignals)
+   - [GET /api/prs/:repo/:number/diff](#24-get-apiprsreponumberdiff)
+   - [POST /api/chat](#25-post-apichat)
+3. [Planned endpoints](#3-planned-endpoints)
+4. [Core types](#4-core-types)
+5. [Internal function signatures](#5-internal-function-signatures)
+6. [Enumerations](#6-enumerations)
+7. [Errors](#7-errors)
 
-Returns the full scored and ranked PR queue for a repository.
+---
 
-**Route handler:** `src/app/api/prs/route.ts`
+## 1. Endpoint map
 
-#### Query Parameters
+| Endpoint | Status | Architecture § |
+|---|---|---|
+| `GET /api/prs` | ✅ Shipped | §13 |
+| `GET /api/prs/:repo/:number/risk` | ✅ Shipped | §13 |
+| `GET /api/prs/:repo/:number/signals` | ✅ Shipped | §13 |
+| `GET /api/prs/:repo/:number/diff` | ✅ Shipped | §13 |
+| `POST /api/chat` | ✅ Shipped (interim) | §10 |
+| `GET /api/prs/:repo/:number/explain` | 🕐 Planned — Phase 6 | §10 |
+| `GET /api/reviewers` | 🕐 Planned — Phase 7 | §8 |
+| `POST /api/review-plan` | 🕐 Planned — Phase 5 | §9 |
+| `GET /api/capacity` | 🕐 Planned — Phase 5 | §9 |
+| `POST /api/triage` | 🕐 Planned — Phase 8 | §11 |
+
+**Authentication.** All GitHub and Anthropic credentials are read server-side from the process environment. Clients send **no** `Authorization` header — see [security.md](./security.md).
+
+**The deterministic guarantee.** `/api/prs`, `/risk`, `/signals` and `/diff` never await an LLM. The deck paints from `/api/prs` alone.
+
+---
+
+## 2. Shipped endpoints
+
+### 2.1 `GET /api/prs`
+
+Returns the scored triage queue, highest risk first.
+
+**Handler:** [src/app/api/prs/route.ts](../src/app/api/prs/route.ts)
+
+#### Query parameters
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `repo` | `string` | **Yes** | — | Full repository slug in `owner/name` format, e.g. `acme/backend` |
-| `limit` | `number` | No | `50` | Maximum number of PRs to return. Range: `1–200`. |
-| `signals` | `boolean` | No | `false` | When `true`, includes the raw `PRSignals` object on each result for debugging. |
+| `repo` | `string` | No | — | Scope to one repository, `owner/name`. Omit to fetch review-requested PRs across every repo the token can see. |
+| `limit` | `number` | No | `50` | Maximum PRs to consider. Clamped to `[1, 100]`. |
+| `signals` | `"1"` | No | — | Pass exactly `1` to include the full `PRSignals` object per PR, so the breakdown view opens with no round trip. |
 
-#### Example Request
+> `signals` is checked with `=== "1"`. `signals=true` does **not** enable it.
+
+#### Example
 
 ```http
-GET /api/prs?repo=acme/backend&limit=20 HTTP/1.1
-Authorization: Bearer <GITHUB_TOKEN>
+GET /api/prs?repo=acme/backend&limit=20&signals=1
 ```
 
 #### Response — `200 OK`
 
 ```jsonc
 {
-  "queue": [
+  "prs": [
     {
-      "prNumber": 1042,
-      "title": "feat: migrate auth to JWT RS256",
-      "url": "https://github.com/acme/backend/pull/1042",
-      "author": "alice",
-      "isDraft": false,
-      "labels": ["breaking-change"],
-      "baseBranch": "main",
-      "headBranch": "feat/jwt-rs256",
-      "createdAt": "2026-08-30T14:22:00Z",
-      "updatedAt": "2026-09-01T09:10:00Z",
-      "assessment": {
+      "number": 147,
+      "title": "Refactor auth token validation",
+      "body": "Replaces session validation with JWT verification.",
+      "author": { "login": "dev-agent" },
+      "repository": { "nameWithOwner": "acme/payments-api" },
+      "createdAt": "2026-09-02T14:22:00Z",
+      "additions": 412,
+      "deletions": 248,
+      "changedFiles": 17,
+      "url": "https://github.com/acme/payments-api/pull/147",
+      "headSha": "a1b2c3d4e5f6",
+      "risk": {
         "score": 87,
-        "riskLevel": "critical",
-        "confidence": 0.94,
-        "lowConfidence": false,
-        "dimensions": [
-          {
-            "name": "domain-criticality",
-            "rawScore": 0.95,
-            "weight": 0.20,
-            "contribution": 19.0,
-            "rationale": "Changes touch auth/session/token paths (weight 1.0)"
-          }
-          // ...6 more dimensions
-        ],
+        "level": "critical",
+        "baseScore": 74.31,
+        "modifierDelta": 8,
+        "floor": null,
+        "floorReasons": [],
+        "dimensions": [ /* exactly 7 — see §4.3 */ ],
         "modifiers": [
-          {
-            "id": "ci-failing",
-            "label": "CI Failing",
-            "delta": 8,
-            "active": true,
-            "reason": "3 checks failing on head commit"
-          }
+          { "id": "ci-failing", "label": "CI is failing", "delta": 8 }
         ],
-        "activeFloors": ["critical-path"],
-        "baseScore": 74,
-        "adjustedScore": 82,
-        "finalScore": 87
-      }
+        "topReasons": [
+          "Auth logic modified across 3 files",
+          "Production code changed with no tests added"
+        ],
+        "confidence": 0.94,
+        "lowConfidence": false
+      },
+      "baseline": 66,
+      "signals": { /* present only when ?signals=1 */ }
     }
   ],
   "summary": {
     "total": 18,
-    "returned": 18,
-    "critical": 3,
-    "high": 6,
-    "medium": 7,
-    "low": 2,
-    "averageScore": 51.4,
-    "generatedAt": "2026-09-03T08:00:00.000Z"
+    "byLevel": { "low": 2, "medium": 7, "high": 6, "critical": 3 },
+    "hasLowConfidence": false
   }
 }
 ```
 
-When `signals=true` is passed, each item in `queue` additionally contains a `signals` key with the full `PRSignals` object (see [§2.5](#25-prsignals)).
+The response key is **`prs`**, not `queue`. Each entry is a [`TriagedPR`](#41-triagedpr).
 
-#### Error Responses
+`baseline` is the naive lines-changed score from `baselineScore()`, shipped alongside the real score so the comparison in the breakdown view is *runnable* rather than asserted (Decision Log #12).
 
-| Status | Code | Description |
-|---|---|---|
-| `400` | `MISSING_REPO` | `repo` query parameter is absent or empty |
-| `400` | `INVALID_REPO` | `repo` does not match `owner/name` format |
-| `401` | `UNAUTHORIZED` | `GITHUB_TOKEN` environment variable is not set or is invalid |
-| `403` | `FORBIDDEN` | Token lacks `repo:read` scope for the requested repository |
-| `404` | `REPO_NOT_FOUND` | Repository does not exist or is not accessible |
-| `429` | `RATE_LIMITED` | GitHub API rate limit exhausted |
-| `500` | `INTERNAL_ERROR` | Unexpected server-side error |
+#### Ordering
+
+Sorted by `risk.score` descending. **Full priority ordering — urgency, age, blocking impact — is Phase 4.** Until then risk order is the honest approximation, and the code says so at the sort site.
+
+#### Empty queue
 
 ```jsonc
-// Error body shape
-{
-  "error": {
-    "code": "MISSING_REPO",
-    "message": "Query parameter 'repo' is required.",
-    "status": 400
-  }
-}
+{ "prs": [], "summary": { "total": 0, "byLevel": { "low": 0, "medium": 0, "high": 0, "critical": 0 }, "hasLowConfidence": false } }
 ```
+
+#### Errors
+
+| Status | Condition |
+|---|---|
+| `400` | `repo` present but not `owner/name` → `{ "error": "Invalid repository \"x\" — expected \"owner/name\"." }` |
+| `500` | Signal collection threw → `{ "error": "<message>" }` |
 
 ---
 
-### 1.2 `POST /api/chat`
+### 2.2 `GET /api/prs/:repo/:number/risk`
 
-Sends a question to Claude about a specific PR. Streams the response as Server-Sent Events.
+Full risk assessment for one PR, including the per-dimension breakdown that makes the score auditable.
 
-**Route handler:** `src/app/api/chat/route.ts`
+**Handler:** [src/app/api/prs/[repo]/[number]/risk/route.ts](../src/app/api/prs/%5Brepo%5D/%5Bnumber%5D/risk/route.ts)
 
-> [!IMPORTANT]
-> This endpoint requires `ANTHROPIC_API_KEY` to be set. When the key is absent the endpoint returns `503 SERVICE_UNAVAILABLE`.
+`:repo` is URL-encoded — `acme%2Fbackend`.
 
-#### Request Body
+```http
+GET /api/prs/acme%2Fbackend/1042/risk
+```
 
 ```jsonc
 {
   "repo": "acme/backend",
-  "prNumber": 1042,
-  "question": "Why is this PR scored so high? What should I focus on?",
-  "history": [
-    {
-      "role": "user",
-      "content": "Summarise the risk"
-    },
-    {
-      "role": "assistant",
-      "content": "This PR modifies the JWT signing logic in auth/..."
-    }
-  ]
+  "number": 1042,
+  "title": "feat: migrate auth to JWT RS256",
+  "author": "alice",
+  "url": "https://github.com/acme/backend/pull/1042",
+  "headSha": "a1b2c3d4",
+  "risk": { /* RiskAssessment — see §4.2 */ }
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `repo` | `string` | **Yes** | Repository slug `owner/name` |
-| `prNumber` | `number` | **Yes** | GitHub PR number |
-| `question` | `string` | **Yes** | The reviewer's question. Max 2000 characters. |
-| `history` | `ChatMessage[]` | No | Prior conversation turns. Max 20 entries. |
-
-#### Response — `200 OK` (SSE Stream)
-
-The response is a `text/event-stream`. Each event delivers an incremental text chunk:
-
-```
-data: {"delta": "This PR touches the JWT signing"}
-
-data: {"delta": " key rotation logic, which carries"}
-
-data: {"delta": " a domain-criticality score of 0.95..."}
-
-data: [DONE]
-```
-
-The stream terminates with the literal `data: [DONE]` sentinel.
-
-#### Error Responses
-
-| Status | Code | Description |
-|---|---|---|
-| `400` | `MISSING_FIELDS` | `repo`, `prNumber`, or `question` is absent |
-| `400` | `INVALID_QUESTION` | Question exceeds 2000 characters |
-| `401` | `UNAUTHORIZED` | `GITHUB_TOKEN` is missing or invalid |
-| `404` | `PR_NOT_FOUND` | PR does not exist in the specified repository |
-| `503` | `LLM_UNAVAILABLE` | `ANTHROPIC_API_KEY` is not configured |
-| `500` | `INTERNAL_ERROR` | Unexpected server-side error |
+| Status | Condition |
+|---|---|
+| `400` | Non-integer or non-positive PR number; malformed repo slug |
+| `500` | Collection or scoring threw |
 
 ---
 
-## 2. TypeScript Interfaces
+### 2.3 `GET /api/prs/:repo/:number/signals`
 
-### 2.1 `TriagedPR`
+The raw measurements — the "show your working" data. Returns `PRSignals` plus the `risk` and `baseline` computed from them.
 
-The top-level object returned in the `queue` array by `GET /api/prs`.
+**Handler:** [src/app/api/prs/[repo]/[number]/signals/route.ts](../src/app/api/prs/%5Brepo%5D/%5Bnumber%5D/signals/route.ts)
 
-**Source:** `src/lib/types.ts`
+Use this endpoint to answer *"where did that number come from?"* — every point of the score traces back to a field here.
 
-```typescript
-interface TriagedPR {
-  // GitHub PR metadata
-  prNumber: number;
+---
+
+### 2.4 `GET /api/prs/:repo/:number/diff`
+
+Unified diff for one PR, fetched through Octokit.
+
+**Handler:** [src/app/api/prs/[repo]/[number]/diff/route.ts](../src/app/api/prs/%5Brepo%5D/%5Bnumber%5D/diff/route.ts)
+
+> 🕐 **Risk-ranked hunk ordering is Phase 6.** Architecture §10 specifies the diff be prioritised by `pathWeight × linesChanged` before truncation, so the model reads the auth change and not the lockfile. The ranking primitive (`rankPatchesByConsequence`) already exists and is tested in [diff.ts](../src/lib/signals/diff.ts); wiring it into this route is pending.
+
+---
+
+### 2.5 `POST /api/chat`
+
+The current explanation surface: a per-PR conversation with Claude about the diff.
+
+**Handler:** [src/app/api/chat/route.ts](../src/app/api/chat/route.ts)
+
+```jsonc
+// Request
+{
+  "repo": "acme/backend",
+  "prNumber": 1042,
+  "prTitle": "feat: migrate auth to JWT RS256",
+  "prBody": "...",
+  "message": "What should I look at first?",
+  "history": [{ "role": "user", "content": "..." }]
+}
+
+// Response
+{ "reply": "The expiry check in middleware.ts is removed without a replacement..." }
+```
+
+| Status | Condition |
+|---|---|
+| `400` | Missing `repo`, `prNumber`, or `message` |
+| `500` | Anthropic call failed |
+
+**Diff handling.** The route fetches the diff once and memoises it in a module-level `Map` keyed `repo:number`. Diffs are truncated to `MAX_DIFF_CHARS` before dispatch.
+
+> ⚠️ **Two known deviations from architecture §10, both tracked for Phase 6:**
+> 1. `MAX_DIFF_CHARS` is hardcoded to `8000` in [claude.ts](../src/lib/claude.ts) and ignores `llm.maxDiffChars` (default `12000`) from config.
+> 2. The cache is keyed on `repo:number` only, **not** `headSha` — a PR that receives a push serves a stale diff until the process restarts. Architecture §17 requires `headSha` keying.
+>
+> This endpoint is superseded by the structured `Explanation` contract (§3.1) in Phase 6.
+
+---
+
+## 3. Planned endpoints
+
+> None of the following exist in the codebase. Shapes are the target contracts from [architecture.md](../ARCHITECTURE.md).
+
+### 3.1 `GET /api/prs/:repo/:number/explain` 🕐 Phase 6
+
+Streamed. Cached on `repo:number:headSha`.
+
+```ts
+export interface Explanation {
+  oneLine: string;            // deck card summary, ≤ 90 chars
+  whatChanged: string;        // 2-3 sentences, behavioural not textual
+  whyItMatters: string;       // grounded in risk.topReasons
+  whereToLookFirst: string[]; // ranked file:line pointers
+  questionsToAsk: string[];   // what the reviewer should verify
+}
+```
+
+The LLM receives the **already-computed** assessment. Any number in the output must have been passed in as input.
+
+### 3.2 `POST /api/review-plan` 🕐 Phase 5
+
+`{ repo, budgetMinutes, reviewer? }` → `ReviewPlan`. Exact 0/1 knapsack DP over cached data, `O(n · budget)`.
+
+```ts
+export interface ReviewPlan {
+  budgetMinutes: number;
+  items: PlanItem[];
+  totalMinutes: number;
+  coveredRisk: number;      // % of total queue risk addressed
+  deferred: DeferredItem[]; // with reason: "needs 24 min, 6 remaining"
+  warnings: string[];       // "1 critical PR does not fit in this budget"
+}
+```
+
+### 3.3 `GET /api/capacity` 🕐 Phase 5
+
+Queue load versus available capacity — the deficit panel.
+
+### 3.4 `GET /api/reviewers` 🕐 Phase 7
+
+Expertise matrix summary and current load per reviewer.
+
+```ts
+export interface ReviewerMatch {
+  login: string;
+  score: number;        // 0-1
+  reasons: string[];    // "14 commits to src/auth/ in the last 90 days"
+  currentLoad: number;
+  isCodeowner: boolean;
+}
+```
+
+Phase 7 is **first to cut**. The UI must hide the reviewer card when `confidence < 0.4`.
+
+### 3.5 `POST /api/triage` 🕐 Phase 8
+
+`{ repo, number, action }` → persists a `TriageRecord`, applies the policy gate, returns a `PolicyVerdict`. **Performs no merge and no approval.**
+
+---
+
+## 4. Core types
+
+### 4.1 `TriagedPR` ✅
+
+[src/lib/types.ts](../src/lib/types.ts)
+
+```ts
+export interface PullRequest {
+  number: number;
   title: string;
+  body: string;
+  author: { login: string };
+  repository: { nameWithOwner: string };
+  createdAt: string;
+  additions?: number;
+  deletions?: number;
+  changedFiles?: number;
   url: string;
-  author: string;
-  isDraft: boolean;
-  labels: string[];
-  baseBranch: string;
-  headBranch: string;
-  createdAt: string;        // ISO 8601
-  updatedAt: string;        // ISO 8601
+}
 
-  // Computed risk assessment
-  assessment: RiskAssessment;
-
-  // Raw signals — only present when ?signals=true
+export interface TriagedPR extends PullRequest {
+  headSha: string;
+  risk: RiskAssessment;
+  /** Score from the naive lines-changed model, for comparison. */
+  baseline: number;
+  /** Present when ?signals=1. */
   signals?: PRSignals;
 }
 ```
 
----
+> Note the nested shape: `author.login` and `repository.nameWithOwner`, not flat strings. Architecture §12 sketches a flat `TriagedPR` with `priority`, `effortMinutes`, `reviewers`, `policy` and `explanation` — those fields arrive in Phases 4–8.
 
-### 2.2 `RiskAssessment`
+### 4.2 `RiskAssessment` ✅
 
-The complete output of the scoring pipeline for a single PR.
+[src/lib/engines/types.ts](../src/lib/engines/types.ts)
 
-**Source:** `src/lib/engines/types.ts`
-
-```typescript
-interface RiskAssessment {
-  /** Final score after all stages. Range: 0–100. */
-  score: number;
-
-  /** Human-readable risk level derived from the final score. */
-  riskLevel: "low" | "medium" | "high" | "critical";
-
-  /**
-   * Fraction of signal sources that were available (0.0–1.0).
-   * Computed as a weighted sum over SignalAvailability flags.
-   */
-  confidence: number;
-
-  /** true when confidence < 0.6. Shown as a warning badge in the UI. */
-  lowConfidence: boolean;
-
-  /** Per-dimension breakdown. Always 7 entries. */
-  dimensions: DimensionResult[];
-
-  /** All modifiers evaluated; includes inactive ones with active: false. */
-  modifiers: Modifier[];
-
-  /** IDs of floor rules that were triggered and raised the score. */
-  activeFloors: string[];
-
-  /** Sum of (rawScore x weight x 100) before any modifiers. */
-  baseScore: number;
-
-  /** baseScore + clamped modifier sum. Pre-floor. */
-  adjustedScore: number;
-
-  /** Final score after floors applied. Equals assessment.score. */
-  finalScore: number;
+```ts
+export interface RiskAssessment {
+  score: number;            // 0-100, integer — the final value
+  level: RiskLevel;
+  baseScore: number;        // weighted sum before modifiers
+  modifierDelta: number;    // net modifier points, after the ±30 cap
+  floor: number | null;     // the floor that decided the score, else null
+  floorReasons: string[];   // empty unless floor is set
+  dimensions: DimensionResult[];  // always exactly 7, fixed order
+  modifiers: Modifier[];          // only those that fired
+  topReasons: string[];           // ranked by contribution, max 5
+  confidence: number;             // 0-1
+  lowConfidence: boolean;         // confidence < 0.6
 }
 ```
 
----
+**Auditability guarantee, enforced by tests:**
 
-### 2.3 `DimensionResult`
-
-One entry per scoring dimension, returned inside `RiskAssessment.dimensions`.
-
-**Source:** `src/lib/engines/types.ts`
-
-```typescript
-interface DimensionResult {
-  /** Unique dimension identifier. */
-  name:
-    | "blast-radius"
-    | "domain-criticality"
-    | "test-posture"
-    | "historical-instability"
-    | "change-complexity"
-    | "dependencies"
-    | "author-provenance";
-
-  /** Normalised signal value before weighting. Range: 0.0–1.0. */
-  rawScore: number;
-
-  /** Fixed weight for this dimension. All weights sum to 1.0. */
-  weight: number;
-
-  /**
-   * Points contributed to baseScore.
-   * contribution = rawScore x weight x 100
-   */
-  contribution: number;
-
-  /** Human-readable explanation of why this score was assigned. */
-  rationale: string;
-}
+```
+dimensions[].contribution  sums to  baseScore
+clamp(baseScore + modifierDelta, 0, 100)  then  max(·, floor)  ==  score
 ```
 
----
+There is no `rawScore`, `adjustedScore`, `finalScore`, or `activeFloors` field. The final value is `score`.
 
-### 2.4 `Modifier`
+### 4.3 `DimensionResult` ✅
 
-Represents a bonus or penalty applied after base scoring.
+```ts
+export interface DimensionResult {
+  id: DimensionId;
+  name: string;
+  raw: number;          // the dimension's own 0..1 assessment
+  weight: number;       // fixed, from the dimension table
+  contribution: number; // raw * weight * 100 — points on the board
+  reasons: string[];
+  signalsUsed: string[]; // which PRSignals fields were read
+}
 
-**Source:** `src/lib/engines/types.ts`
+export type DimensionId =
+  | "blast-radius" | "domain-criticality" | "test-posture"
+  | "historical-instability" | "change-complexity"
+  | "dependencies" | "author-provenance";
+```
 
-```typescript
-interface Modifier {
-  /** Unique modifier identifier. */
-  id:
-    | "ci-failing"
-    | "hotfix-branch"
-    | "urgent-label"
-    | "already-approved"
-    | "draft"
-    | "generated-only"
-    | "docs-only";
+`signalsUsed` is what powers the audit view: it names the measurements behind each dimension.
 
-  /** Display label for UI. */
+### 4.4 `Modifier` ✅
+
+```ts
+export interface Modifier {
+  id: string;
   label: string;
-
-  /**
-   * Point delta. Positive = risk increase, negative = risk decrease.
-   * The sum of all active modifier deltas is clamped to +-30 before application.
-   */
-  delta: number;
-
-  /** Whether the modifier's condition was met for this PR. */
-  active: boolean;
-
-  /** Explanation of why this modifier is or is not active. */
-  reason: string;
+  delta: number;  // points added or removed
 }
+
+export const MODIFIER_CAP = 30;             // aggregate, either direction
+export const LOW_CONFIDENCE_THRESHOLD = 0.6;
 ```
 
----
+### 4.5 `PRSignals` ✅
 
-### 2.5 `PRSignals`
+[src/lib/signals/types.ts](../src/lib/signals/types.ts) — ~70 fields grouped by identity, size & shape, semantic classification, test posture, dependencies, historical instability, CI & review state, author context, provenance, urgency, and `availability`.
 
-The complete measured state of a PR, as produced by the Signal Layer.
+Matches architecture §5 with these additions made during implementation:
 
-**Source:** `src/lib/signals/types.ts`
+| Field | Why it was added |
+|---|---|
+| `headSha`, `baseBranch`, `headBranch` | Cache keying and hotfix detection |
+| `distinctCategories` | Precomputed for blast radius rather than recomputed per call |
+| `testLinesDeleted`, `productionLinesDeleted`, `testsRemoved` | Test *removal* is a distinct signal from test *absence* |
+| `reviewRounds` | Eval labelling (>3 rounds ⇒ attention-worthy) |
+| `labels` | Alongside `linkedIssueLabels` |
+| `availability` | See §4.6 |
 
-```typescript
-interface PRSignals {
-  // Metadata
-  prNumber: number;
-  title: string;
-  author: string;
-  authorType: "human" | "bot" | "unknown";
-  isDraft: boolean;
-  labels: string[];
-  baseBranch: string;
-  headBranch: string;
-  createdAt: string;
-  updatedAt: string;
-  bodyLength: number;
+`FileSignal` carries `categoryWeight` and optional `patch`; churn is `churn`, not `churn90d`.
 
-  // Diff
-  additions: number;
-  deletions: number;
-  changedFiles: string[];
-  /**
-   * Maps each changed file path to its detected category and weight.
-   * e.g. { "src/auth/jwt.ts": { category: "auth", weight: 1.0 } }
-   */
-  fileCategories: Record<string, { category: FileCategory; weight: number }>;
+### 4.6 `SignalAvailability` ✅
 
-  // CI
-  ciStatus: "passing" | "failing" | "pending" | "unknown";
-  ciCheckCount: number;
-  ciFailingCount: number;
+Records which signal groups could actually be measured, so missing data degrades confidence instead of silently becoming zero.
 
-  // Reviews
-  approvalCount: number;
-  reviewerCount: number;
-  changeRequestCount: number;
+```ts
+export const AVAILABILITY_WEIGHTS = {
+  metadata: 0.35, patches: 0.15, history: 0.20,
+  ci: 0.10, reviews: 0.08, codeowners: 0.05, authorHistory: 0.07,
+};
 
-  // History
-  /** Average commits per week for all touched files over the past 90 days. */
-  fileChurnRate: number;
-  /** Fraction of recent commits that reference a bug fix (0.0–1.0). */
-  bugFixFrequency: number;
-  /** Mean age of the touched files in days since first commit. */
-  fileAgeDays: number;
-
-  // Ownership
-  hasCodeowners: boolean;
-  /** Fraction of changed files that have at least one entry in CODEOWNERS. */
-  ownersCoverage: number;
-
-  // Dependencies
-  hasLockfileChanges: boolean;
-  hasManifestChanges: boolean;
-  dependencyChangeCount: number;
-
-  // AI Authorship
-  authorProvenance: AuthorProvenance;
-
-  // Signal Availability
-  availability: SignalAvailability;
-}
-
-interface AuthorProvenance {
-  /** True if 2 or more independent AI-authorship hints are detected. */
-  likelyAIAuthored: boolean;
-  hints: Array<
-    | "botAuthor"
-    | "coAuthoredByTrailer"
-    | "branchNamePattern"
-    | "commitCadence"
-    | "templatedBody"
-  >;
-}
-
-interface SignalAvailability {
-  metadata: boolean;      // weight 0.35
-  patches: boolean;       // weight 0.15
-  history: boolean;       // weight 0.20
-  ci: boolean;            // weight 0.10
-  reviews: boolean;       // weight 0.08
-  codeowners: boolean;    // weight 0.05
-  authorHistory: boolean; // weight 0.07
-}
+export function signalConfidence(a: SignalAvailability): number;
+export function emptyAvailability(): SignalAvailability;
 ```
 
----
+### 4.7 `QueueSummary` ✅
 
-### 2.6 `QueueSummary`
-
-Top-level statistics for the scored queue.
-
-**Source:** `src/lib/types.ts`
-
-```typescript
-interface QueueSummary {
-  /** Total open PRs in the repository (before `limit` is applied). */
+```ts
+export interface QueueSummary {
   total: number;
-
-  /** Number of PRs returned in this response (<= limit). */
-  returned: number;
-
-  /** Count of PRs at each risk level in the returned set. */
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
-
-  /** Mean final score across the returned set. */
-  averageScore: number;
-
-  /** ISO 8601 timestamp of when this response was generated. */
-  generatedAt: string;
+  byLevel: { low: number; medium: number; high: number; critical: number };
+  hasLowConfidence: boolean;
 }
 ```
 
----
+No `averageScore` or `returned` field.
 
-### 2.7 `ChatMessage`
+### 4.8 `TriageRecord` ✅
 
-A single turn in a conversation, used in the `history` field of `POST /api/chat`.
+```ts
+export type TriageAction = "fast-track" | "needs-review" | "defer";
 
-**Source:** `src/lib/types.ts`
-
-```typescript
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
+export interface TriageRecord {
+  repo: string;
+  prNumber: number;
+  action: TriageAction;
+  riskAtDecision: number;  // audit trail
+  timestamp: number;
 }
 ```
 
----
+`riskAtDecision` lets the queue later surface *"you fast-tracked this at 18; it now scores 61."*
 
-### 2.8 `AppConfig`
+> `"defer"` is defined but not yet reachable from the UI — see [ui-components.md](./ui-components.md#triage-gestures). Architecture §12 also lists `"explain"` as an action; in the shipped code explain is a screen transition, not a recorded triage decision.
 
-The parsed and merged configuration object produced by `loadConfig()`.
+### 4.9 `PocketReviewConfig` ✅
 
-**Source:** `src/lib/config.ts`
-
-```typescript
-interface AppConfig {
-  paths: PathRule[];
-
-  thresholds: {
-    low: number;       // default: 25
-    medium: number;    // default: 50
-    high: number;      // default: 75
-  };
-
-  policy: {
-    /** Maximum score a PR may have to be fast-tracked. */
-    fastTrackMaxRisk: number;       // default: 25
-    /** File categories that can never be fast-tracked regardless of score. */
-    neverFastTrack: FileCategory[]; // default: ["auth", "payments", "database"]
-    /** Whether CI must be passing for fast-track to be allowed. */
-    requireCiPassing: boolean;      // default: true
-  };
-
-  llm: {
-    enabled: boolean;               // default: true
-  };
-}
-
-interface PathRule {
-  category: FileCategory;
-  weight: number;        // 0.0–1.0
-  patterns: string[];    // glob patterns
-}
-```
+See [configuration.md](./configuration.md). `PolicyConfig` is defined and loaded but **not yet consumed** — the gate is Phase 8.
 
 ---
 
-## 3. Internal Function Signatures
+## 5. Internal function signatures
 
-### 3.1 Signal Layer
+### 5.1 Signal layer ✅ — [src/lib/signals/](../src/lib/signals/)
 
-#### `collectSignals`
+```ts
+// collect.ts — orchestration with per-source failure isolation
+collectSignals(repo: string, number: number, opts: { rules: PathRule[] }): Promise<PRSignals>
+collectQueueSignals(prs: { repo: string; number: number }[], opts): Promise<PRSignals[]>
 
-```typescript
-// src/lib/signals/collect.ts
+// classify.ts
+classifyPath(path: string, rules: PathRule[]): { category: FileCategory; weight: number }
+parseCodeowners(text: string): CodeownersRule[]
+matchOwners(path: string, rules: CodeownersRule[]): string[]
 
-/**
- * Fetches all available signals for a single pull request.
- *
- * @param repo     - Repository slug "owner/name"
- * @param prNumber - GitHub PR number
- * @param config   - Application config (used for path rules)
- * @returns        - Fully-populated PRSignals object
- * @throws         - GitHubError on network or API failure
- */
-async function collectSignals(
-  repo: string,
-  prNumber: number,
-  config: AppConfig,
-): Promise<PRSignals>
+// diff.ts
+rankPatchesByConsequence(files: FileSignal[]): FileSignal[]  // criticality dominates; size breaks ties
+redactSecrets(text: string): string
+
+// github.ts — Octokit, bounded concurrency (6)
+listRepoPRs(repo: string, limit: number)
+listReviewRequested(limit: number)
+getPRDiff(repo: string, number: number): Promise<string>
+mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]>
 ```
 
-#### `collectQueueSignals`
+### 5.2 Engine layer ✅ — [src/lib/engines/](../src/lib/engines/)
 
-```typescript
-/**
- * Fetches signals for an array of PRs in parallel.
- * Respects MAX_CONCURRENT = 6 at the Octokit layer.
- *
- * @param repo   - Repository slug
- * @param prs    - Array of PR stubs from the GitHub list endpoint
- * @param config
- * @returns      - Array of PRSignals in the same order as input
- */
-async function collectQueueSignals(
-  repo: string,
-  prs: GitHubPRStub[],
-  config: AppConfig,
-): Promise<PRSignals[]>
+```ts
+assessRisk(signals: PRSignals, options?: { thresholds?: Thresholds }): RiskAssessment
+baselineScore(signals: PRSignals): number   // the lines-changed model, to be beaten
+toLevel(score: number, thresholds: Thresholds): RiskLevel
+
+export const DIMENSIONS: Dimension[]        // 7, weights asserted to sum to 1.00 at load
+export const MODIFIER_RULES: ModifierRule[] // 7
+export const FLOOR_RULES: FloorRule[]       // 3
 ```
 
-#### `classifyPath`
+Each dimension is a pure `Dimension` with `evaluate(signals) => { raw, reasons, signalsUsed }`.
 
-```typescript
-// src/lib/signals/classify.ts
+> 🕐 `priority-engine.ts` (Phase 4), `effort-estimator.ts` (Phase 4), `review-plan.ts` (Phase 5) and `reviewer-engine.ts` (Phase 7) are not yet written.
 
-/**
- * Determines the file category and risk weight for a given file path.
- * Rules are evaluated in order; first match wins.
- *
- * @param filePath - Relative path within the repository
- * @param rules    - Ordered list of PathRules (config overrides + defaults)
- * @returns        - { category, weight }
- */
-function classifyPath(
-  filePath: string,
-  rules: PathRule[],
-): { category: FileCategory; weight: number }
+### 5.3 Math ✅ — [src/lib/math.ts](../src/lib/math.ts)
+
+```ts
+clamp(v: number, min?: number, max?: number): number   // NaN-safe
+saturate(x: number, k: number): number                 // 1 - exp(-x/k)
+normalisedEntropy(values: number[]): number            // 0..1
+weightedMean(values: number[], weights?: number[]): number
+decay(days: number, halfLife: number): number
+round(v: number, dp: number): number
+ratio(a: number, b: number): number                    // safe at zero
 ```
 
-#### `parseCodeowners`
+### 5.4 Config ✅ — [src/lib/config.ts](../src/lib/config.ts)
 
-```typescript
-/**
- * Parses a CODEOWNERS file into a structured ownership map.
- *
- * @param content - Raw text content of the CODEOWNERS file
- * @returns       - Map of glob pattern to owner handles
- */
-function parseCodeowners(content: string): Map<string, string[]>
+```ts
+loadConfig(): Promise<PocketReviewConfig>  // cached after first call
+isDemoMode(): boolean
+export const DEFAULT_CONFIG: PocketReviewConfig
 ```
 
-#### `ownersForPath`
+### 5.5 AI layer ✅ (interim) — [src/lib/claude.ts](../src/lib/claude.ts)
 
-```typescript
-/**
- * Returns the set of owners responsible for a given file path.
- *
- * @param filePath - Relative repository path
- * @param ownerMap - Result of parseCodeowners()
- * @returns        - Array of owner handles (e.g. "@acme/auth-team")
- */
-function ownersForPath(
-  filePath: string,
-  ownerMap: Map<string, string[]>,
-): string[]
+```ts
+chatWithClaude(args: {
+  prTitle: string; prBody: string; diff: string;
+  history: ChatMessage[]; message: string;
+}): Promise<string>
+```
+
+Replaced by `explainRisk(signals, risk, diff) => Promise<Explanation>` in Phase 6.
+
+### 5.6 Display ✅ — [src/lib/risk-display.ts](../src/lib/risk-display.ts)
+
+```ts
+export const LEVEL_STYLES: Record<RiskLevel, LevelStyle>
+timeAgo(iso: string): string
+shortRepo(nameWithOwner: string): string
 ```
 
 ---
 
-### 3.2 Engine Layer
+## 6. Enumerations
 
-#### `assessRisk`
+| Type | Values |
+|---|---|
+| `RiskLevel` | `"low"` · `"medium"` · `"high"` · `"critical"` |
+| `DimensionId` | the 7 ids in §4.3 |
+| `FileCategory` | `"auth"` `"payments"` `"database"` `"infra"` `"api"` `"config"` `"test"` `"docs"` `"ui"` `"generated"` `"other"` |
+| `FileStatus` | `"added"` `"modified"` `"removed"` `"renamed"` `"copied"` `"changed"` `"unchanged"` |
+| `CIStatus` | `"passing"` `"failing"` `"pending"` `"none"` |
+| `ReviewState` | `"none"` `"pending"` `"commented"` `"changes_requested"` `"approved"` |
+| `TriageAction` | `"fast-track"` `"needs-review"` `"defer"` |
+| `SwipeDirection` | `"left"` `"right"` |
 
-```typescript
-// src/lib/engines/risk-engine.ts
-
-/**
- * Computes the complete risk assessment for a PR from its signals.
- * Pure function — no I/O, no side effects.
- *
- * Pipeline:
- *   1. Run all 7 dimension functions -> DimensionResult[]
- *   2. Compute baseScore = sum(rawScore x weight x 100)
- *   3. Evaluate all MODIFIER_RULES -> active Modifier[]
- *   4. clamp(sum(active deltas), -30, +30) -> clampedModifiers
- *   5. adjustedScore = clamp(baseScore + clampedModifiers, 0, 100)
- *   6. Evaluate FLOOR_RULES -> activeFloors
- *   7. finalScore = max(adjustedScore, max(activeFloors))
- *   8. Derive riskLevel from finalScore + thresholds
- *   9. Compute confidence from SignalAvailability weights
- *
- * @param signals - Fully-populated PRSignals
- * @param config  - Application config (thresholds, path rules, policy)
- * @returns       - Complete RiskAssessment
- */
-function assessRisk(signals: PRSignals, config: AppConfig): RiskAssessment
-```
-
-#### `baselineScore`
-
-```typescript
-/**
- * Computes the unweighted baseline score from dimension results.
- * Exported for unit-testing purposes.
- *
- * @param dimensions - Array of DimensionResult (7 items)
- * @returns          - Sum of contributions (0–100)
- */
-function baselineScore(dimensions: DimensionResult[]): number
-```
-
-#### Dimension Functions
-
-Each dimension lives in `src/lib/engines/dimensions/` and shares the same signature:
-
-```typescript
-// Generic signature for all 7 dimension functions
-type DimensionFn = (
-  signals: PRSignals,
-  config: AppConfig,
-) => DimensionResult;
-
-// Individual exports:
-export function blastRadius(signals, config): DimensionResult           // weight: 0.20
-export function domainCriticality(signals, config): DimensionResult     // weight: 0.20
-export function testPosture(signals, config): DimensionResult           // weight: 0.15
-export function historicalInstability(signals, config): DimensionResult // weight: 0.15
-export function changeComplexity(signals, config): DimensionResult      // weight: 0.12
-export function dependencies(signals, config): DimensionResult          // weight: 0.10
-export function authorProvenance(signals, config): DimensionResult      // weight: 0.08
-```
+`FileStatus` and `ReviewState` carry more members than architecture §5 lists, because GitHub emits them.
 
 ---
 
-### 3.3 AI Layer
+## 7. Errors
 
-#### `chatWithClaude`
+Every endpoint returns `{ "error": string }` with an appropriate status.
 
-```typescript
-// src/lib/claude.ts
+| Status | Meaning |
+|---|---|
+| `400` | Malformed `repo` slug or PR number — validated before any network call |
+| `500` | Upstream failure (GitHub, Anthropic) or unexpected throw |
 
-/**
- * Sends a question to Claude with full PR context and streams the response.
- *
- * The assessment is serialised into the system prompt so that Claude
- * explains the pre-computed score — it does NOT recompute a score.
- *
- * @param assessment - Pre-computed RiskAssessment (becomes system context)
- * @param history    - Prior conversation turns (max 20)
- * @param question   - The reviewer's question
- * @returns          - AsyncIterable of text chunks (streamed tokens)
- * @throws           - LLMUnavailableError when ANTHROPIC_API_KEY is absent
- */
-function chatWithClaude(
-  assessment: RiskAssessment,
-  history: ChatMessage[],
-  question: string,
-): AsyncIterable<string>
-```
+**Degradation over failure.** Within signal collection, a failing *source* does not fail the request: `collect.ts` isolates each source, records the gap in `availability`, and the assessment returns with reduced `confidence`. Missing git history yields a lower confidence score, never a `500`.
 
 ---
 
-### 3.4 Config Layer
-
-#### `loadConfig`
-
-```typescript
-// src/lib/config.ts
-
-/**
- * Reads and parses .pocketreview.yml from the project root.
- * Merges user-provided values with built-in defaults.
- * Returns safe defaults if the file is absent or malformed.
- *
- * @param projectRoot - Absolute path to the project root (default: process.cwd())
- * @returns           - Validated AppConfig
- */
-async function loadConfig(projectRoot?: string): Promise<AppConfig>
-```
-
----
-
-### 3.5 Math Utilities
-
-**Source:** `src/lib/math.ts`
-
-```typescript
-/**
- * Clamps value to [min, max].
- * @default min=0, max=1
- */
-function clamp(value: number, min?: number, max?: number): number
-
-/**
- * Saturating curve: f(x) = 1 - e^(-x / knee)
- * Produces diminishing returns — useful for normalising unbounded counts.
- * @param knee - The x value at which f(x) is approximately 0.63
- */
-function saturate(value: number, knee: number): number
-
-/** Arithmetic mean of a number array. */
-function mean(values: number[]): number
-
-/**
- * Weighted mean.
- * @param pairs - Array of [value, weight] tuples
- */
-function weightedMean(pairs: [number, number][]): number
-
-/**
- * Shannon entropy of a probability distribution, normalised to 0..1.
- * Used by blast-radius to measure file-category spread.
- * @param distribution - Array of non-negative values (need not sum to 1)
- */
-function normalisedEntropy(distribution: number[]): number
-
-/**
- * Exponential decay.
- * f(age) = e^(-age / halfLife)
- * Used by historical-instability to down-weight old churn data.
- * @param age      - Age of the observation (e.g. days)
- * @param halfLife - Age at which weight = 0.5
- */
-function decay(age: number, halfLife: number): number
-
-/** Rounds value to the specified number of decimal places. */
-function round(value: number, places: number): number
-
-/**
- * Safe ratio. Returns 0 when whole is 0.
- * @param part  - Numerator
- * @param whole - Denominator
- */
-function ratio(part: number, whole: number): number
-```
-
----
-
-## 4. Enumerations & Literals
-
-### `FileCategory`
-
-```typescript
-type FileCategory =
-  | "auth"        // weight 1.00 — authentication, sessions, tokens
-  | "payments"    // weight 1.00 — billing, Stripe, checkout
-  | "database"    // weight 0.85 — migrations, schema, ORM models
-  | "infra"       // weight 0.75 — Terraform, k8s, Docker
-  | "api"         // weight 0.70 — routes, controllers, handlers
-  | "config"      // weight 0.55 — env files, app config
-  | "ui"          // weight 0.30 — components, pages, views
-  | "test"        // weight 0.10 — test files
-  | "docs"        // weight 0.05 — markdown, README
-  | "generated";  // weight 0.00 — auto-generated files
-```
-
-### `RiskLevel`
-
-```typescript
-type RiskLevel = "low" | "medium" | "high" | "critical";
-
-const RISK_LEVEL_THRESHOLDS = {
-  low:      { min: 0,  max: 24 },
-  medium:   { min: 25, max: 49 },
-  high:     { min: 50, max: 74 },
-  critical: { min: 75, max: 100 },
-} as const;
-```
-
-### `ModifierId`
-
-```typescript
-type ModifierId =
-  | "ci-failing"       // +8  — CI checks are failing
-  | "hotfix-branch"    // +10 — branch name matches hotfix/*
-  | "urgent-label"     // +6  — PR has urgent/priority:critical label
-  | "already-approved" // -15 — at least one approved review
-  | "draft"            // -20 — PR is in draft state
-  | "generated-only"   // -25 — all changed files are generated
-  | "docs-only";       // -30 — all changed files are docs
-```
-
-### `FloorRuleId`
-
-```typescript
-type FloorRuleId =
-  | "critical-path-untested" // floor: 55 — critical files + tests removed
-  | "critical-path"          // floor: 40 — any auth/payments/database file touched
-  | "tests-removed";         // floor: 35 — test files deleted, none added
-```
-
-### `TriageDecision`
-
-```typescript
-type TriageDecision =
-  | "fast-track"    // swipe right — policy gate runs
-  | "needs-review"  // swipe left  — deep review lane
-  | "explain"       // swipe up    — open Claude chat
-  | "defer";        // swipe down  — snooze to end of queue
-```
-
----
-
-## 5. Error Reference
-
-### Error Classes
-
-```typescript
-// src/lib/errors.ts
-
-class GitHubError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code: string,
-  ) { super(message); }
-}
-
-class LLMUnavailableError extends Error {
-  // Thrown by chatWithClaude() when ANTHROPIC_API_KEY is absent
-}
-
-class ConfigError extends Error {
-  // Thrown by loadConfig() on schema validation failure
-}
-
-class PolicyGateError extends Error {
-  // Thrown when fast-track is blocked; includes reason
-  constructor(
-    message: string,
-    public readonly reason: string,
-    public readonly blockedBy: string,  // e.g. "neverFastTrack:auth"
-  ) { super(message); }
-}
-```
-
-### HTTP Error Codes
-
-| Code | HTTP Status | Meaning |
-|---|---|---|
-| `MISSING_REPO` | 400 | `repo` query parameter not provided |
-| `INVALID_REPO` | 400 | `repo` is not in `owner/name` format |
-| `MISSING_FIELDS` | 400 | Required body fields absent in `/api/chat` |
-| `INVALID_QUESTION` | 400 | Question exceeds 2000 character limit |
-| `UNAUTHORIZED` | 401 | `GITHUB_TOKEN` missing or rejected |
-| `FORBIDDEN` | 403 | Token lacks required scope |
-| `REPO_NOT_FOUND` | 404 | Repository not accessible |
-| `PR_NOT_FOUND` | 404 | PR does not exist in repository |
-| `RATE_LIMITED` | 429 | GitHub API rate limit exceeded |
-| `LLM_UNAVAILABLE` | 503 | `ANTHROPIC_API_KEY` not configured |
-| `INTERNAL_ERROR` | 500 | Unexpected server error |
-
-### Error Response Body
-
-All error responses share this shape:
-
-```typescript
-interface ErrorResponse {
-  error: {
-    code: string;
-    message: string;
-    status: number;
-    details?: unknown;  // Additional context when available
-  };
-}
-```
-
----
-
-*For architectural context, see [architecture.md](./architecture.md).*
+*Verified against the codebase on 2026-09-03 — Phase 3 complete, 74/74 tests passing.*

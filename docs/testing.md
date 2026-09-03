@@ -1,136 +1,229 @@
-﻿# Testing Guide
+# Testing
 
-PocketReview uses the Node.js built-in test runner (`node:test`) and assertions (`node:assert`). No external testing framework like Jest or Vitest is required. 
-
-This approach keeps the toolchain light, dependency footprint small, and test execution extremely fast.
-
----
-
-## Table of Contents
-
-1. [Running Tests](#running-tests)
-2. [Test Categories](#test-categories)
-3. [The Key Demo Tests](#the-key-demo-tests)
-4. [Test Helpers & Fixtures](#test-helpers--fixtures)
-5. [Testing a New Dimension](#testing-a-new-dimension)
-6. [CI Integration](#ci-integration)
+> Corresponds to [architecture.md §16](../ARCHITECTURE.md#16-validation-strategy).
+>
+> **Status:** ✅ **74/74 passing**, verified 2026-09-03. The eval harness (§ *Validation*) is 🕐 Phase 8.
 
 ---
 
-## Running Tests
+## Two different questions
 
-Tests are executed using `tsx` (TypeScript Execute) to handle TS/ESM transpilation on the fly.
+Keep these separate — conflating them is how projects end up claiming accuracy they never measured.
 
-**Run all tests:**
+| | Question | Answered by | Status |
+|---|---|---|---|
+| **Tests** | Does the engine do what it says? | `npm test` | ✅ 74 passing |
+| **Eval** | Is what it says *correct*? | `npm run eval` | 🕐 Phase 8 |
+
+Tests prove the arithmetic is sound, the guarantees hold, and the demo claims reproduce. They cannot prove the ranking is right — that needs ground truth from history.
+
+---
+
+## Running
+
 ```bash
-npm test
+npm test          # 74 tests, offline, ~1.6s
+npm run typecheck # tsc --noEmit
+npm run build     # production build
 ```
-*(Under the hood, this runs: `tsx --test tests/*.test.mjs`)*
+
+Node's built-in runner (`node:test` + `node:assert`) via `tsx` for TS/ESM transpilation. No Jest, no Vitest — light toolchain, tiny dependency surface, fast.
+
+**No network, no environment variables.** The suite runs with the wifi off and needs neither `GITHUB_TOKEN` nor `ANTHROPIC_API_KEY`. That is a design property: the engines are pure functions over `PRSignals`, so they are testable without touching GitHub.
 
 ---
 
-## Test Categories
+## Suites
 
-The test suite is organized into distinct categories, verifying different layers of the application.
-
-| File | What it Covers |
-|---|---|
-| `risk-engine.test.mjs` | The scoring formula, dimension weights, modifier caps, floor rules, structural guarantees, and the core demo claims. |
-| `signals.test.mjs` | Path classification (`classifyPath`), CODEOWNERS parsing (`parseCodeowners`), generated/test file detection, entropy calculations, and pure signal derivation. |
-| `risk-display.test.mjs` | Presentation utilities: `timeAgo` formatting, `shortRepo` extraction, and color token completeness (`LEVEL_STYLES`). |
-| `demo-queue.test.mjs` | Runs the full demo queue (`fixtures.ts`) through the risk engine to ensure all demo PRs map to the expected risk bands without crashing. |
+| File | Tests | Covers |
+|---|---:|---|
+| [risk-engine.test.mjs](../tests/risk-engine.test.mjs) | 33 | Scoring formula, weights, modifier caps, floors, structural guarantees, demo claims |
+| [signals.test.mjs](../tests/signals.test.mjs) | 29 | Path classification, CODEOWNERS, diff parsing, patch ranking, redaction, math |
+| [demo-queue.test.mjs](../tests/demo-queue.test.mjs) | 12 | The full demo queue through the real engine |
+| [risk-display.test.mjs](../tests/risk-display.test.mjs) | — | `LEVEL_STYLES` completeness, `timeAgo`, `shortRepo` |
 
 ---
 
-## The Key Demo Tests
+## The claims the tests defend
 
-PocketReview makes two core claims about its scoring system over naive "lines-changed" models. These claims are strictly enforced in `risk-engine.test.mjs`.
+These encode the product thesis. **If they fail, the value proposition is broken — do not merge past them.**
 
-### 1. "A one-line auth change scores HIGH"
-*Size is not risk; domain criticality is size-independent.*
+### 1. A one-line auth change scores high
 
-This test creates a fixture with exactly 1 addition and 1 deletion in `src/auth/session.ts` and asserts that:
-- `risk.score >= 50` (Medium or High)
-- The `domain-criticality` dimension contributes the vast majority of points.
-- The `baselineScore` (lines-changed) rates it near 0.
+Fixture: 1 addition, 1 deletion in `src/auth/session.ts`.
 
-### 2. "A 4,000-line lockfile scores LOW"
-*Large diffs are not inherently risky if they are generated.*
+```
+score        55  ·  high
+baseline      0            ← lines-changed model
+```
 
-This test creates a fixture with 4,000+ additions in `package-lock.json` and asserts that:
-- `risk.score < 25` (Low)
-- The size dimensions appropriately ignore the generated file.
-- The `baselineScore` maxes out at 100 (proving the naive model fails here).
+Asserts domain criticality dominates, and that the `critical-path` floor carries the score to the `high` band. *Size is not risk.*
 
-> **Important:** If either of these tests fails, the core value proposition of the engine is broken. Do not merge changes that break these assertions.
+### 2. A 4,000-line lockfile scores low
+
+Fixture: 4,000+ additions in `package-lock.json`.
+
+```
+score         0  ·  low
+baseline    100            ← lines-changed model maxes out
+```
+
+Asserts generated files are excluded from size scoring. *The classic false positive.*
+
+### 3. The baseline gets both backwards
+
+The decisive test: the tiny auth change **outranks** the huge lockfile in our engine, and the lines-changed baseline ranks them in exactly the opposite order.
+
+That inversion is the demo.
+
+### Structural guarantees
+
+- Contributions sum to `baseScore`
+- Score fully accounted for by base + modifiers + floor
+- Floors only raise; never fire on drafts or approved PRs
+- **Deterministic across 50 runs**
+- No dimension exceeds `weight × 100`
+- Modifier aggregate cap (±30) holds
+- Score always an integer in `[0,100]`
+
+### Behavioural guarantees
+
+- Criticality is size-independent
+- Test removal forces the dimension to maximum
+- Missing history → zero instability **and** lower confidence
+- AI provenance moves the score by ≤4 points
+- Six of seven dimensions ignore authorship entirely
+- Docs-only lands in `low`; an empty PR does not crash
 
 ---
 
-## Test Helpers & Fixtures
+## A test that caught a real bug
 
-**Path:** `tests/helpers/signals.mjs`
+Patch ranking (`rankPatchesByConsequence`) originally **multiplied** criticality by size. That let a 200-line UI file (`0.3 × 200 = 60`) outrank a 15-line auth change (`1.0 × 15 = 15`) — so the LLM would have been sent the UI file and not the auth change.
 
-Because the engine requires a deeply nested `PRSignals` object, writing tests manually would be tedious. We use factory functions to generate predictable signals.
+The fix: criticality dominates, size breaks ties within a tier. Two tests now pin it (Decision Log #6).
 
-### `makeSignals(overrides)`
-Returns a complete, valid `PRSignals` object with safe neutral defaults (e.g., 0 additions, no files, empty strings). Use the `overrides` parameter to specify the exact state you are testing.
+This is the argument for testing pure functions: the bug was invisible in the UI and would have surfaced as *"the explanation talks about the wrong file."*
 
-```javascript
-import { makeSignals } from './helpers/signals.mjs';
+---
 
+## Fixtures
+
+### `tests/helpers/signals.mjs`
+
+`PRSignals` has ~70 fields; building one by hand per test is unworkable.
+
+```js
+import { makeSignals, makeFile } from "./helpers/signals.mjs";
+
+// Complete, valid PRSignals with neutral defaults — override what you test.
 const signals = makeSignals({
-  isDraft: true,
-  files: [ ... ]
+  files: [makeFile({
+    path: "src/auth/session.ts",
+    category: "auth",
+    categoryWeight: 1.0,
+    additions: 1,
+    deletions: 1,
+  })],
+  productionLinesAdded: 1,
+  hasNoTests: true,
+  criticalPaths: ["auth"],
 });
 ```
 
-### `makeFile(overrides)`
-Generates a `FileSignal` object. By default, returns a trivial `other` file with 0 additions.
+`makeSignals(overrides)` returns neutral defaults — zero counts, empty collections, full availability. `makeFile(overrides)` returns a trivial `other` file.
 
-```javascript
-import { makeFile } from './helpers/signals.mjs';
+**Neutral defaults matter:** a test for one dimension must not accidentally trip another. If a new required field lands on `PRSignals`, add it here with a neutral default.
 
-const authFile = makeFile({
-  path: 'src/auth/login.ts',
-  category: 'auth',
-  categoryWeight: 1.0,
-  additions: 10
-});
-```
+### `src/lib/demo/fixtures.ts`
 
-### Pre-built Fixtures
-- `oneLineAuthChange()`: 1-line change to auth/session.
-- `lockfileOnlyChange()`: 4000-line package-lock change.
-- `docsOnlyChange()`: README change.
-- `dangerousChange()`: Auth file + no tests + failing CI.
+Seven hand-built PRs powering `DEMO_MODE=1`, exercised by `demo-queue.test.mjs`. They run through the **real engine** (Decision Log #13) — so the demo test and the demo itself cannot diverge.
+
+Covers: tiny-critical, huge-worthless, emergency, well-tested, trivial, low-confidence.
 
 ---
 
-## Testing a New Dimension
+## Testing a new dimension
 
-When adding a new dimension to `src/lib/engines/dimensions/`, you must update the test suite to ensure structural guarantees are maintained.
+1. **Weights must still sum to 1.00.** The engine throws at module load otherwise — the entire suite fails instantly, by design.
+2. **`raw` must be in `[0,1]`.** The orchestrator clamps defensively; your logic should not rely on it.
+3. **Isolate it.** Maximise your dimension's inputs, leave everything else neutral, assert on `raw`.
+4. **Assert the reasons.** They surface verbatim on the card — an empty or unreadable reason is a bug.
 
-1. **Weight sum:** The sum of weights in `DIMENSIONS` must exactly equal `1.00`. If you add a dimension, you must reduce weights elsewhere. The engine throws at module load if this is violated, which will instantly fail the entire test suite.
-2. **Bounds checking:** Ensure your dimension strictly returns a `raw` value between `0` and `1`. (The engine `clamp`s this defensively, but your logic should be sound).
-3. **Write specific dimension tests:** Create fixtures that isolate your dimension's logic (e.g., maximizing its inputs while zeroing others) and assert the `raw` score output.
-
-```javascript
-test("new-dimension handles X correctly", () => {
-  const signals = makeSignals({ /* specific setup */ });
+```js
+test("new-dimension fires on X", () => {
+  const signals = makeSignals({ /* only what this dimension reads */ });
   const output = myNewDimension.evaluate(signals);
-  
+
   assert.ok(output.raw > 0.8);
-  assert.equal(output.reasons.length, 1);
+  assert.ok(output.reasons.length > 0);
+  assert.ok(output.signalsUsed.includes("theFieldIRead"));
 });
 ```
 
+Then re-run the structural tests — they will catch a weight-sum mistake immediately.
+
 ---
 
-## CI Integration
+## What is *not* covered
 
-Tests should run on every pull request. Since the test suite does not require any environment variables (like `GITHUB_TOKEN` or `ANTHROPIC_API_KEY`) and performs no network I/O, it can run trivially in GitHub Actions.
+Honesty here is the point of the section.
 
-Example `.github/workflows/test.yml`:
+| Gap | Why | Plan |
+|---|---|---|
+| **Component rendering** | No React test renderer installed | Manual; low value pre-demo |
+| **Mobile layout at 390×844** | Needs human eyes | ⚠️ **Before the demo** |
+| **API route handlers** | Would need Next request mocking | Logic lives in tested pure functions |
+| **Live GitHub integration** | Deliberately no network in tests | `DEMO_MODE` + manual runs |
+| **Ranking correctness** | Needs historical ground truth | 🕐 Phase 8 eval |
+
+---
+
+## Validation harness 🕐 Phase 8
+
+> **Never cut.** Architecture §16. This is what turns *"we built a scoring system"* into *"our scoring system beats the naive approach by N points of recall."*
+
+### Reframe the claim
+
+We do **not** claim to predict bugs. We claim to **rank PRs by required human attention**. So we validate the *ranking*, not a classification.
+
+### Ground truth, mined automatically
+
+```
+A merged PR is labelled ATTENTION-WORTHY if any held:
+  ├── it was reverted
+  ├── a commit within 7 days referenced it as a fix
+  ├── it received "changes requested"
+  ├── it needed > 3 review rounds
+  └── it touched files in a subsequent incident/hotfix commit
+```
+
+Fully automatable from `git log` and the GitHub API — no manual labelling. `reviewRounds` already exists on `PRSignals` for exactly this.
+
+### Metrics
+
+| Metric | Meaning |
+|---|---|
+| **Recall@K** | Of the truly attention-worthy PRs, how many are in our top K? ← **headline** |
+| Precision@K | Of our top K, how many were justified? |
+| NDCG | Ranking quality across the whole queue |
+| **Lift vs baseline** | Versus `baselineScore()` ← **the money number** |
+
+Recall@K is the KPI rather than "time saved" because time saved needs a control group that does not exist (Decision Log #10).
+
+### Rules
+
+- `eval/results.md` is **committed with real measured output**.
+- Record which repo was **tuned on** versus **tested on**.
+- Effort calibration reports MAE against time-to-first-review. Honestly ±8 minutes beats a precision you cannot support.
+
+> **Never present illustrative figures as measured ones.** The template numbers in architecture §16 are placeholders to fill from a real run. Presenting them as measured is the one mistake that cannot be recovered from when a judge probes.
+
+---
+
+## CI
+
+The suite needs no secrets and no network, so CI is trivial:
 
 ```yaml
 name: Test
@@ -148,3 +241,23 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 ```
+
+> Not yet committed — no `.github/workflows/` in the repo. Add when convenient.
+
+---
+
+## Definition of done
+
+A phase is complete when:
+
+1. Every task is `[x]`
+2. `npm run typecheck` is clean
+3. `npm test` passes
+4. `npm run build` succeeds
+5. The phase's "done when" is demonstrably true
+
+*"Written but unverified" is `[~]`, not `[x]`.*
+
+---
+
+*Verified 2026-09-03 — 74/74 passing, typecheck clean, production build succeeds.*

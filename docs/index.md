@@ -1,65 +1,59 @@
-﻿# PocketReview — Documentation
+# PocketReview — Documentation
 
 > **Intelligent PR triage for AI-accelerated engineering teams.**
 > *We don't review your code. We decide where your attention goes.*
 
 ---
 
-## Quick Start
+## Quick start
 
 ```bash
 npm install --legacy-peer-deps
-cp .env.example .env.local   # Add GITHUB_TOKEN
+cp .env.example .env.local   # add GITHUB_TOKEN
 npm run dev                  # → http://localhost:3000
 ```
 
-Open in Chrome DevTools → device toolbar → iPhone 14 Pro. PocketReview is a mobile-first triage tool designed for dead-time use: commutes, queues, between meetings.
-
 ```bash
-# No GitHub account? Run offline:
+# No GitHub account, no network? Run offline:
 DEMO_MODE=1 npm run dev
 ```
 
----
-
-## Documentation Map
-
-### 🏗️ System Design
-
-| Document | What it covers |
-|---|---|
-| [Architecture](./architecture.md) | Full system design, layer-by-layer breakdown, data flow diagrams, design principles |
-| [Risk Scoring](./risk-scoring.md) | The 7 scoring dimensions, modifier system, floor rules, confidence model, scoring formula |
-
-### 🔌 Integration & Reference
-
-| Document | What it covers |
-|---|---|
-| [API Reference](./api-reference.md) | REST endpoints, TypeScript interfaces, request/response shapes, internal function signatures |
-| [Configuration](./configuration.md) | Environment variables, `.pocketreview.yml` schema, path rules, policy gate, per-repo customization |
-
-### 🎨 Frontend
-
-| Document | What it covers |
-|---|---|
-| [UI Components](./ui-components.md) | Component inventory, props tables, swipe gestures, risk color system, hooks reference |
-
-### 🔒 Security & Quality
-
-| Document | What it covers |
-|---|---|
-| [Security](./security.md) | Token scopes, data flow, LLM opt-out, no-persistence guarantee, AI approval prohibition |
-| [Testing](./testing.md) | Test runner setup, test categories, key demo test cases, fixture factories, CI guidance |
-
-### 🤝 Contributing
-
-| Document | What it covers |
-|---|---|
-| [Contributing](./contributing.md) | Dev setup, workflow, adding dimensions, adding path rules, PR checklist |
+Open in Chrome DevTools → device toolbar → iPhone 14 Pro. PocketReview is mobile-first by design: senior reviewers' genuinely free moments happen on commutes and between meetings, not at a desk.
 
 ---
 
-## Core Concept in 30 Seconds
+## Start here
+
+| Document | What it covers |
+|---|---|
+| **[Architecture](../ARCHITECTURE.md)** | **The source of truth for the design.** The problem, the thesis, all nine layers, the data model, validation strategy, build phases, judge Q&A. |
+| **[PROGRESS.md](./PROGRESS.md)** | **The source of truth for status.** What is built, what is pending, what was deliberately cut, and the decision log. |
+
+Everything else in this folder is reference material for what is *shipped today*.
+
+---
+
+## Reference
+
+| Document | What it covers |
+|---|---|
+| [Risk Scoring](./risk-scoring.md) | The 7 dimensions with real formulas, modifiers, floors, confidence, the demo table |
+| [API Reference](./api-reference.md) | Endpoints, TypeScript interfaces, internal signatures |
+| [Configuration](./configuration.md) | Env vars, `.pocketreview.yml`, path rules and precedence, thresholds |
+| [UI Components](./ui-components.md) | Component props, gestures, colour system, hooks |
+| [Security](./security.md) | Token scopes, LLM opt-out, persistence, the policy gate |
+| [Testing](./testing.md) | Test suites, the claims they defend, fixtures, the eval harness |
+| [Contributing](./contributing.md) | Setup, the four invariants, adding dimensions and signals |
+
+**Status convention.** Reference docs mark every section ✅ **Shipped** (verified against source) or 🕐 **Planned — Phase N** (designed in the architecture, not yet built). The architecture document describes the complete target system; these describe the code as it exists.
+
+---
+
+## The idea in 30 seconds
+
+Code review is the only stage of the software lifecycle that AI made *worse*. Writing accelerated 4–5×; review still runs at the speed of one human reading one diff. When arrival rate exceeds service rate, the queue grows without bound — and what gets silently dropped is review quality.
+
+PocketReview treats **reviewer attention as a resource to allocate**, not a queue to drain.
 
 ```
 GitHub · git history · CI · CODEOWNERS
@@ -69,85 +63,127 @@ GitHub · git history · CI · CODEOWNERS
       │   SIGNAL LAYER   │  measurement only — no judgement
       └────────┬─────────┘
                │  PRSignals
-    ┌──────────┼──────────┐
-    ▼          ▼          ▼
-  RISK      REVIEWER    EFFORT
-  ENGINE    SUGGEST.    ESTIMATE
-    │
-    ▼
-  87/100  ←── deterministic arithmetic
-    │
-    └──▶  LLM writes prose about 87   (optional, can be disabled)
+               ▼
+      ┌──────────────────┐
+      │   RISK ENGINE    │  7 weighted dimensions
+      └────────┬─────────┘
+               │
+             87/100  ←── deterministic arithmetic
+               │
+               └──▶  LLM writes prose about 87   (optional)
 ```
 
-The **score is computed in code**. The LLM only narrates it. Disable the LLM and every score, ranking, and review plan still works — you lose the English, not the system.
+**The score is computed in code. The LLM only narrates it.** Disable the LLM and every score, ranking and breakdown still works — you lose the English, not the system.
+
+We do not answer *"is this code correct?"* — that is unsolved. We answer:
+
+> *"Given 17 open PRs and 30 minutes, which should this engineer open, in what order, and what should they look at first?"*
 
 ---
 
-## Key Design Decisions
+## The demo table — measured, reproducible
+
+Reproduce with `npm test`:
+
+| Scenario | Lines | PocketReview | Lines-changed baseline |
+|---|---:|---:|---:|
+| One-line auth change | 2 | **55** · high | 0 |
+| 4,000-line lockfile | 5,000 | **0** · low | 100 |
+| Docs typo fix | 10 | **0** · low | 1 |
+| Auth + payments rewrite | 660 | **89** · critical | 66 |
+
+The baseline ranks the lockfile at 100 and the auth change at 0 — **exactly inverted.**
+
+---
+
+## Key design decisions
 
 | Decision | Rationale |
 |---|---|
-| Deterministic scoring | "Why 87?" always has the same answer — a table of contributions that sums to 87 |
+| Deterministic scoring | *"Why 87?"* always has the same answer — a table of contributions summing to 87 |
 | Domain criticality is size-independent | A one-line auth change is as critical as a 400-line one |
-| Generated files excluded from size scoring | A 4,000-line lockfile diff must not read as high risk |
-| LLM narrates, never decides | No LLM output ever merges code or affects scores |
-| Missing signals degrade confidence | A repo without CI still gets scored — with a lower confidence label |
-| Mobile-first | Senior reviewers' free moments happen on commutes, not at desks |
+| Generated files excluded from size scoring | A 4,000-line lockfile must not read as high risk |
+| Floors on top of the weighted sum | Averaging is wrong for categorical facts; a floor only ever raises |
+| LLM narrates, never decides | No model output merges code or affects a score |
+| Missing signals degrade confidence | A repo without CI still gets scored — with an honest label |
+| AI provenance weighted at 0.08 | Source-agnostic: max ~3 points of 100 |
+| Mobile-first | Free moments happen on commutes, not at desks |
+
+Full reasoning in the [Decision Log](./PROGRESS.md#decision-log).
 
 ---
 
-## Project Structure
+## Where the project stands
+
+```
+  Phase 0  Foundation & branding      ██████████  100%   ✅
+  Phase 1  Signal Layer               ██████████  100%   ✅
+  Phase 2  Risk Engine                ██████████  100%   ✅
+  Phase 3  Deck & risk UI             ██████████  100%   ✅
+  Phase 4  Priority & effort          ░░░░░░░░░░    0%   ⬅ NEXT
+  Phase 5  Review plan                ░░░░░░░░░░    0%
+  Phase 6  Explanation layer          ░░░░░░░░░░    0%
+  Phase 7  Reviewer engine            ░░░░░░░░░░    0%   ⚠ first to cut
+  Phase 8  Policy gate & eval         ░░░░░░░░░░    0%
+  Phase 9  Hardening & demo           ░░░░░░░░░░    0%
+```
+
+**74/74 tests pass · typecheck clean · production build succeeds.**
+
+Never cut: **Risk Engine** (2), **Review Plan** (5), **Eval harness** (8). Those three are the project; everything else is presentation.
+
+---
+
+## Project structure
 
 ```text
 src/
 ├── app/
 │   ├── api/
-│   │   ├── prs/route.ts        # GET /api/prs — scored queue
-│   │   └── chat/route.ts       # POST /api/chat — Claude chat
-│   ├── page.tsx                # Main triage UI
+│   │   ├── prs/route.ts                        # GET — scored queue
+│   │   ├── prs/[repo]/[number]/risk/route.ts   # GET — full assessment
+│   │   ├── prs/[repo]/[number]/signals/route.ts# GET — raw measurements
+│   │   ├── prs/[repo]/[number]/diff/route.ts   # GET — unified diff
+│   │   └── chat/route.ts                       # POST — Claude chat
+│   ├── page.tsx                                # triage UI orchestrator
 │   └── layout.tsx
 ├── components/
-│   ├── SwipeDeck.tsx           # Card stack with swipe gestures
-│   ├── PRCard.tsx              # Individual PR card
-│   ├── SwipeActions.tsx        # Action buttons
-│   ├── ChatScreen.tsx          # Claude chat interface
-│   ├── QueueSummaryBar.tsx     # Queue risk distribution
+│   ├── SwipeDeck.tsx · PRCard.tsx · SwipeActions.tsx
+│   ├── QueueSummaryBar.tsx · Header.tsx · EmptyState.tsx
+│   ├── ChatScreen.tsx
 │   └── risk/
-│       ├── DimensionBreakdown.tsx  # Full audit view
+│       ├── DimensionBreakdown.tsx              # the credibility screen
 │       ├── RiskBadge.tsx
 │       └── RiskReasons.tsx
 ├── hooks/
-│   ├── usePRs.ts               # Queue data fetching
-│   ├── useChat.ts              # Per-PR chat state
-│   └── useSwipeHistory.ts      # Triage decision log
+│   ├── usePRs.ts · useChat.ts · useSwipeHistory.ts
 └── lib/
-    ├── types.ts                # Shared types
-    ├── config.ts               # .pocketreview.yml loader
-    ├── claude.ts               # Explanation layer
-    ├── math.ts                 # Pure numeric helpers
-    ├── risk-display.ts         # UI tokens (colors, labels)
+    ├── types.ts · config.ts · claude.ts · math.ts · risk-display.ts
+    ├── demo/fixtures.ts                        # DEMO_MODE data
     ├── engines/
-    │   ├── risk-engine.ts      # assessRisk(), baselineScore()
-    │   ├── types.ts            # RiskAssessment, DimensionResult
-    │   └── dimensions/         # 7 pure scoring functions
+    │   ├── risk-engine.ts                      # assessRisk(), baselineScore()
+    │   ├── types.ts
+    │   └── dimensions/                         # 7 pure scoring functions
     └── signals/
-        ├── types.ts            # PRSignals, FileSignal
-        ├── collect.ts          # Signal orchestration
-        ├── classify.ts         # Path classification
-        ├── path-rules.ts       # Category rules
-        ├── github.ts           # Octokit client
-        ├── diff.ts             # Diff analysis
-        └── history.ts          # Git history analysis
+        ├── types.ts · collect.ts · classify.ts
+        ├── path-rules.ts · github.ts · diff.ts · history.ts
 tests/
-├── risk-engine.test.mjs
-├── signals.test.mjs
-├── risk-display.test.mjs
-├── demo-queue.test.mjs
-└── helpers/
-    └── signals.mjs             # Fixture factories
+├── risk-engine.test.mjs · signals.test.mjs
+├── risk-display.test.mjs · demo-queue.test.mjs
+└── helpers/signals.mjs
 ```
+
+Directories in architecture §15 that do not exist yet: `lib/engines/priority-engine.ts`, `review-plan.ts`, `reviewer-engine.ts`, `lib/llm/`, `lib/policy/`, `lib/cache/`, `eval/`, `fixtures/`.
 
 ---
 
-*PocketReview is a hackathon project. See [README.md](../README.md) for the full project description.*
+## The four sentences
+
+1. **AI multiplied code output. It did not multiply reviewer attention.**
+2. **We do not judge whether code is correct. We decide where a human should look first.**
+3. **The score is computed in code; the LLM only narrates it.**
+4. **We never let an AI approve code written by an AI.**
+
+---
+
+*PocketReview is a hackathon project. See [README.md](../README.md) for the project description.*

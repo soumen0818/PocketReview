@@ -1,90 +1,161 @@
-﻿# Security & Privacy
+# Security & Privacy
 
-PocketReview is designed to review code in environments with strict data privacy and security requirements. 
+> Corresponds to [architecture.md §18](../ARCHITECTURE.md#18-security--privacy) and §11 (the Policy Gate).
+>
+> **Status convention.** ✅ **Shipped** means verified against the code at the path given. 🕐 **Planned (Phase N)** means the control is designed but **not yet enforced** — do not rely on it.
+
+> **The pitch line:** *"We never let an AI approve code written by an AI. We only decide which human sees it first."*
 
 ---
 
-## Token Scopes (Read-Only)
+## Read-only by construction ✅
 
-PocketReview operates on a **strictly read-only** basis.
-
-| Token | Scope Required | Purpose |
+| Token | Scope | Purpose |
 |---|---|---|
-| `GITHUB_TOKEN` | `repo:read` | Fetching PR metadata, file lists, diffs, CI status, and git history. |
+| `GITHUB_TOKEN` | `repo:read` | PR metadata, file lists, diffs, CI status, git history |
+| `ANTHROPIC_API_KEY` | — | Optional. Explanation layer only. |
 
-**No write endpoints are wired.** There is zero code in this repository that calls `octokit.rest.pulls.merge` or `octokit.rest.pulls.createReview`. The application structurally cannot merge code or submit approvals on your behalf. 
+**No write endpoint exists.** There is no call to `pulls.merge` or `pulls.createReview` anywhere in the repository — verified by grep across `src/`. The application structurally cannot merge code or submit approvals.
 
-Triage decisions (like Fast-Track) are recorded in local session state to update the UI; they are never pushed to GitHub.
+This is not merely unused capability. An approve endpoint **existed and was deliberately deleted** in Phase 0 (Decision Log #3): the product thesis is that AI-accelerated review created a trust deficit, and solving it by having an AI approve AI-authored code argues against the project.
 
----
-
-## The AI Approval Prohibition
-
-> **"We never let an AI approve code written by an AI."**
-
-PocketReview does not auto-approve pull requests. A right-swipe (Fast-Track) routes the PR to a human's fast lane. A human reviewer still opens the PR and clicks "Approve". 
-
-By keeping the final authorization step manual, we eliminate the risk of an LLM hallucinating a safe score for a malicious or buggy AI-authored pull request.
+Triage decisions are recorded in client-side session state to drive the UI. They are never pushed to GitHub.
 
 ---
 
-## What Data Leaves the Process?
+## Server-side token guarantee ✅
 
-PocketReview performs all risk scoring locally on your server using deterministic arithmetic. 
+`GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are read only in API route handlers, never prefixed `NEXT_PUBLIC_`, and are absent from the client bundle. All GitHub and Anthropic calls originate server-side. Clients send no `Authorization` header.
 
-**If LLM integration is disabled (`llm.enabled: false`), NO data ever leaves the process.**
+Tokens live in `.env.local`, which is gitignored.
 
-### When LLM is Enabled
-If the Anthropic integration is active (for the "Explain" / Chat feature), the following data is transmitted to the Anthropic API:
-- PR Title & Body
-- The Unified Diff (truncated to `MAX_DIFF_CHARS`, default 12,000)
+---
+
+## What leaves the process
+
+### With the LLM disabled — nothing ✅
+
+Set `llm.enabled: false` (or simply omit `ANTHROPIC_API_KEY`) and **no code ever leaves the process.** Every score, ranking and breakdown still works — you lose the prose, not the system.
+
+This is a real differentiator for regulated teams, and it is a direct consequence of the core design decision: the score is computed in code, so the LLM is removable.
+
+### With the LLM enabled ✅
+
+Transmitted to the Anthropic API:
+
+- PR title and body
+- The unified diff, truncated
 - The user's chat messages
 
-### Secret Redaction
-Before diffs are dispatched to the LLM, standard secret scanning patterns (e.g., AWS keys, Stripe tokens, generic high-entropy strings assigned to variables like `password` or `secret`) are scrubbed from the diff text. 
+Nothing else. Signals, scores and history stay local.
 
-*Note: While redaction is implemented, it is best practice not to commit secrets to git in the first place.*
+### Secret redaction ✅
 
----
+`redactSecrets()` in [src/lib/signals/diff.ts](../src/lib/signals/diff.ts) scrubs known key patterns and high-entropy assignments to variables named like `password` or `secret`, replacing them with `[REDACTED:<label>]` before any diff is dispatched. Covered by a test.
 
-## No-Persistence Guarantee
-
-PocketReview does not use a database. 
-
-- **Cache:** The server caches `PRSignals` (metadata, stats) and LLM explanations in memory to prevent rate-limiting and redundant API calls.
-- **Diff Content:** Diff content is NEVER persisted to disk or cached. It is fetched, analyzed for line counts/dependencies, optionally sent to the LLM, and discarded.
-- **Client State:** The triage queue and session history (`useSwipeHistory`) live entirely in browser memory and are lost on refresh/close.
+*Redaction is a backstop, not a licence to commit secrets.*
 
 ---
 
-## Policy Gate (Structural Safety)
+## Persistence ✅
 
-The Fast-Track gesture is protected by a Policy Gate that acts as a structural safety mechanism. 
+PocketReview uses no database.
 
-The Policy Gate can **only remove eligibility; it can never grant it.**
+| What | Where it lives | Survives restart? |
+|---|---|---|
+| Config | Parsed from `.pocketreview.yml`, memoised in-process | No |
+| Diff text (chat) | In-memory `Map` in the chat route | No |
+| Triage history | Browser memory (`useSwipeHistory`) | No — lost on refresh |
+| Signals, scores | Recomputed per request | No |
 
-Even if the risk engine scores a PR at 0/100, the Policy Gate will block Fast-Track if:
-- CI is failing or pending.
-- The PR touches **Critical Paths** (Auth, Payments, Database).
-- Dependencies were modified.
-- Test files were removed.
+**Nothing is written to disk.** No signals cache, no explanation cache, no expertise matrix on disk today.
 
-**Critical Path Protection:** The restriction against fast-tracking Auth, Payments, or Database code is hard-coded into the policy gate. It cannot be overridden by risk scores or configuration. 
+> ⚠️ **Correction to a claim in earlier drafts.** Diff content *is* cached — in memory, in the chat route, keyed `repo:number`. It is not persisted to disk, but "never cached" was wrong. Two consequences:
+>
+> 1. Diff text for a reviewed PR stays in process memory for the lifetime of the server.
+> 2. The key omits `headSha`, so a PR that receives a push serves a **stale diff** until restart. Architecture §17 requires `headSha` keying — tracked for Phase 6/9.
 
----
-
-## Server-Side Token Guarantee
-
-Environment variables (`GITHUB_TOKEN`, `ANTHROPIC_API_KEY`) are accessed exclusively in Next.js Server Components and API Routes. 
-
-They are never prefixed with `NEXT_PUBLIC_` and are completely absent from the client-side JavaScript bundle, ensuring your tokens cannot be extracted from the browser.
+🕐 **Phase 9** introduces `cache/store.ts` with an L2 disk cache. Per architecture §18 it must store **signals and explanations only, never diff content** — that constraint is what keeps this section true once disk caching exists.
 
 ---
 
-## Security Checklist for Contributors
+## The Policy Gate 🕐 Phase 8 — NOT YET ENFORCED
 
-If you are contributing to PocketReview, ensure you adhere to the following constraints:
-1. **Never add write scopes.** Do not add GitHub API calls that mutate state.
-2. **Never send diffs elsewhere.** The only external egress for diffs is the Anthropic client, and it must remain gated behind the `llm.enabled` config check.
-3. **Preserve the Policy Gate.** Do not add bypass mechanisms for the Critical Path checks.
-4. **No persistent storage.** Do not add database connections or write user code to the filesystem.
+> **This control is designed but not implemented. Do not describe it as an active protection.**
+>
+> **What exists today:** `PolicyConfig` is defined in [src/lib/config.ts](../src/lib/config.ts) with defaults (`fastTrackMaxRisk: 25`, `neverFastTrack: ["auth", "payments", "database"]`, `requireCiPassing: true`, `blockOnDependencyChange: true`, `blockOnTestRemoval: true`) and is parsed from `.pocketreview.yml`.
+>
+> **What does not exist:** any code that reads it. `src/lib/policy/gate.ts` is unwritten. A right-swipe in [page.tsx](../src/app/page.tsx) records a `TriageAction` with no eligibility check. **A critical-path PR can currently be marked fast-track.**
+
+### Why the risk is bounded today
+
+Fast-track is a **queue-lane label held in browser memory**. It approves nothing, merges nothing, and is never sent to GitHub. The gate's absence changes which card a reviewer sees first — it cannot cause an unreviewed merge, because no merge path exists at all (§ *Read-only by construction*).
+
+### The target contract — architecture §11
+
+The gate can only **remove** eligibility; it can never grant it. All conditions must hold for a fast-track to be eligible:
+
+```
+     swipe right (fast-track)
+              │
+              ▼
+   ┌──────────────────────┐
+   │  POLICY GATE          │   ALL must hold:
+   │                       │
+   │  risk < threshold     │   default 25
+   │  CI passing           │
+   │  no critical paths    │   auth/payments/db never fast-track
+   │  no dep changes       │
+   │  tests not removed    │
+   │  not a protected file │   from .pocketreview.yml
+   │  branch rules allow   │   from GitHub branch protection
+   └──────────┬───────────┘
+              │
+       ┌──────┴──────┐
+       ▼             ▼
+   ELIGIBLE       VETOED
+       │             │
+       ▼             ▼
+  queued for    stays in queue
+  fast-track    + shown reason
+```
+
+**Critical-path protection is structural.** The prohibition on fast-tracking auth, payments and database changes is intended to be unconditional — not overridable by a low risk score or by configuration.
+
+Even when built, fast-track produces a marked queue and at most an optional GitHub *comment*. It will not call the approve or merge API. That is a deliberate product decision.
+
+**Required test (Phase 8):** *critical paths can never be fast-tracked at any score.*
+
+---
+
+## Defence in depth — what protects you today
+
+With the gate unbuilt, three shipped properties carry the safety argument:
+
+1. **No write capability.** The worst outcome of a wrong score is a misordered queue. The reviewer still sees every PR.
+2. **The score is not LLM-generated.** A prompt-injected diff cannot move a risk score — scores come from arithmetic over measured signals. The LLM only writes prose, and prose cannot change a ranking.
+3. **Floors resist dilution.** A one-line auth change cannot be averaged into looking trivial: `critical-path` floors it at 40 and `critical-path-untested` at 55, and the reason is surfaced. This is scoring, not access control — but it is why the dangerous PR surfaces rather than sinking.
+
+---
+
+## Treat LLM output as untrusted ✅
+
+Diff content reaches the model, and diffs are attacker-controllable on a public repo. The mitigations are architectural:
+
+- Model output is **displayed, never executed** and never parsed into control flow.
+- No number the model emits is trusted: the score is computed before the model is called, and the Phase 6 contract requires every number in the output to have been passed in as input.
+- The prompt instructs the model not to invent or alter scores — but the guarantee rests on the score being computed independently, not on prompt compliance.
+
+---
+
+## Contributor checklist
+
+1. **Never add write scopes.** No GitHub API call may mutate state. The approve endpoint was deleted on purpose; do not reintroduce it.
+2. **Never send diffs elsewhere.** The only external egress for diff content is the Anthropic client, gated behind `llm.enabled`.
+3. **Preserve the Policy Gate once built.** No bypass for critical-path checks, at any score.
+4. **No persistent storage of source.** When the Phase 9 disk cache lands, it stores signals and explanations — never diff content.
+5. **Keep the score deterministic.** If an LLM ever influences a number, every guarantee on this page collapses.
+
+---
+
+*Verified against the codebase on 2026-09-03 — Phase 3 complete. The Policy Gate is Phase 8 and is not yet enforced.*
