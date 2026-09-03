@@ -4,13 +4,13 @@ import { useState, useCallback } from "react";
 import Header from "@/components/Header";
 import SwipeDeck from "@/components/SwipeDeck";
 import SwipeActions from "@/components/SwipeActions";
-import ChatScreen from "@/components/ChatScreen";
+import ExplainScreen from "@/components/explain/ExplainScreen";
 import EmptyState from "@/components/EmptyState";
 import QueueSummaryBar from "@/components/QueueSummaryBar";
 import DimensionBreakdown from "@/components/risk/DimensionBreakdown";
 import { useSwipeHistory } from "@/hooks/useSwipeHistory";
 import { usePRs } from "@/hooks/usePRs";
-import { useChat } from "@/hooks/useChat";
+import { useExplanation } from "@/hooks/useExplanation";
 import type { TriagedPR } from "@/lib/types";
 
 type TriggerSwipe = { direction: "left" | "right" } | null;
@@ -19,9 +19,16 @@ export default function Home() {
   const { hasReviewed, addTriage } = useSwipeHistory();
   const { prs, summary, loading, error, refetch, removePR } =
     usePRs(hasReviewed);
-  const { getHistory, sendMessage, sending } = useChat();
+  const {
+    explanation,
+    loading: explaining,
+    error: explainError,
+    errorKind,
+    fetchExplanation,
+    reset: resetExplanation,
+  } = useExplanation();
 
-  const [chatPR, setChatPR] = useState<TriagedPR | null>(null);
+  const [explainPR, setExplainPR] = useState<TriagedPR | null>(null);
   const [breakdownPR, setBreakdownPR] = useState<TriagedPR | null>(null);
   const [triggerSwipe, setTriggerSwipe] = useState<TriggerSwipe>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -66,6 +73,14 @@ export default function Home() {
     [addTriage, removePR],
   );
 
+  // Explanations are fetched only when a card is opened — browsing the deck
+  // costs no tokens, and the deck never waits on a model to paint.
+  const openExplain = useCallback(() => {
+    if (!topPR) return;
+    setExplainPR(topPR);
+    fetchExplanation(topPR.repository.nameWithOwner, topPR.number);
+  }, [topPR, fetchExplanation]);
+
   const triggerNeedsReview = useCallback(() => {
     if (!topPR) return;
     setTriggerSwipe({ direction: "left" });
@@ -90,14 +105,25 @@ export default function Home() {
     );
   }
 
-  if (chatPR) {
+  if (explainPR) {
     return (
-      <ChatScreen
-        pr={chatPR}
-        history={getHistory(chatPR)}
-        onSend={(msg) => sendMessage(chatPR, msg)}
-        sending={sending}
-        onClose={() => setChatPR(null)}
+      <ExplainScreen
+        pr={explainPR}
+        explanation={explanation}
+        loading={explaining}
+        error={explainError}
+        errorKind={errorKind}
+        onRetry={() =>
+          fetchExplanation(
+            explainPR.repository.nameWithOwner,
+            explainPR.number,
+            true,
+          )
+        }
+        onClose={() => {
+          setExplainPR(null);
+          resetExplanation();
+        }}
       />
     );
   }
@@ -140,7 +166,7 @@ export default function Home() {
               />
               <SwipeActions
                 onNeedsReview={triggerNeedsReview}
-                onExplain={() => setChatPR(topPR)}
+                onExplain={openExplain}
                 onFastTrack={triggerFastTrack}
                 disabled={!topPR}
               />

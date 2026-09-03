@@ -14,7 +14,8 @@
    - [GET /api/prs/:repo/:number/risk](#22-get-apiprsreponumberrisk)
    - [GET /api/prs/:repo/:number/signals](#23-get-apiprsreponumbersignals)
    - [GET /api/prs/:repo/:number/diff](#24-get-apiprsreponumberdiff)
-   - [POST /api/chat](#25-post-apichat)
+   - [POST /api/chat — removed](#25-post-apichat--removed-in-phase-6)
+   - [GET /api/prs/:repo/:number/explain](#28-get-apiprsreponumberexplain)
 3. [Planned endpoints](#3-planned-endpoints)
 4. [Core types](#4-core-types)
 5. [Internal function signatures](#5-internal-function-signatures)
@@ -31,8 +32,8 @@
 | `GET /api/prs/:repo/:number/risk`    | ✅ Shipped           | §13            |
 | `GET /api/prs/:repo/:number/signals` | ✅ Shipped           | §13            |
 | `GET /api/prs/:repo/:number/diff`    | ✅ Shipped           | §13            |
-| `POST /api/chat`                     | ✅ Shipped (interim) | §10            |
-| `GET /api/prs/:repo/:number/explain` | 🕐 Planned — Phase 6 | §10            |
+| `POST /api/chat`                     | ❌ Removed — Phase 6 | §10            |
+| `GET /api/prs/:repo/:number/explain` | ✅ Shipped           | §10            |
 | `GET /api/reviewers`                 | 🕐 Planned — Phase 7 | §8             |
 | `POST /api/review-plan`              | ✅ Shipped           | §9             |
 | `GET /api/capacity`                  | ✅ Shipped           | §9             |
@@ -204,40 +205,11 @@ Unified diff for one PR, fetched through Octokit.
 
 ---
 
-### 2.5 `POST /api/chat`
+### 2.5 `POST /api/chat` — ❌ removed in Phase 6
 
-The current explanation surface: a per-PR conversation with Claude about the diff.
+Superseded by [`GET .../explain`](#28-get-apiprsreponumberexplain) and the structured `Explanation` contract.
 
-**Handler:** [src/app/api/chat/route.ts](../src/app/api/chat/route.ts)
-
-```jsonc
-// Request
-{
-  "repo": "acme/backend",
-  "prNumber": 1042,
-  "prTitle": "feat: migrate auth to JWT RS256",
-  "prBody": "...",
-  "message": "What should I look at first?",
-  "history": [{ "role": "user", "content": "..." }]
-}
-
-// Response
-{ "reply": "The expiry check in middleware.ts is removed without a replacement..." }
-```
-
-| Status | Condition                                |
-| ------ | ---------------------------------------- |
-| `400`  | Missing `repo`, `prNumber`, or `message` |
-| `500`  | Anthropic call failed                    |
-
-**Diff handling.** The route fetches the diff once and memoises it in a module-level `Map` keyed `repo:number`. Diffs are truncated to `MAX_DIFF_CHARS` before dispatch.
-
-> ⚠️ **Two known deviations from architecture §10, both tracked for Phase 6:**
->
-> 1. `MAX_DIFF_CHARS` is hardcoded to `8000` in [claude.ts](../src/lib/claude.ts) and ignores `llm.maxDiffChars` (default `12000`) from config.
-> 2. The cache is keyed on `repo:number` only, **not** `headSha` — a PR that receives a push serves a stale diff until the process restarts. Architecture §17 requires `headSha` keying.
->
-> This endpoint is superseded by the structured `Explanation` contract (§3.1) in Phase 6.
+The old route shelled out to a `claude` CLI subprocess — billed through a subscription rather than an API key, dependent on the CLI being installed on the demo machine, and carrying two defects the replacement fixes: a hardcoded 8000-char diff limit that ignored `llm.maxDiffChars`, and a cache keyed `repo:number` that served a stale diff after any push. `src/lib/claude.ts`, `ChatScreen.tsx` and `useChat.ts` were deleted with it (Decision Log #20–21).
 
 ---
 
@@ -245,7 +217,7 @@ The current explanation surface: a per-PR conversation with Claude about the dif
 
 > None of the following exist in the codebase. Shapes are the target contracts from [architecture.md](../ARCHITECTURE.md).
 
-### 3.1 `GET /api/prs/:repo/:number/explain` 🕐 Phase 6
+### 2.8 `GET /api/prs/:repo/:number/explain` ✅
 
 Streamed. Cached on `repo:number:headSha`.
 
@@ -259,7 +231,20 @@ export interface Explanation {
 }
 ```
 
-The LLM receives the **already-computed** assessment. Any number in the output must have been passed in as input.
+**Handler:** [src/app/api/prs/[repo]/[number]/explain/route.ts](../src/app/api/prs/%5Brepo%5D/%5Bnumber%5D/explain/route.ts)
+
+The model receives the **already-computed** assessment. Every number in the output was passed in as input — the score exists before this endpoint is called, and nothing here can write back to it.
+
+Cached on `repo:number:headSha`: an unchanged PR is explained once (measured 9.9s cold, 0.04s warm).
+
+| Status | Condition                                                                                                     |
+| ------ | ------------------------------------------------------------------------------------------------------------- |
+| `200`  | `{ repo, number, explanation }`                                                                               |
+| `400`  | Malformed repo slug or PR number                                                                              |
+| `404`  | Demo mode, and the PR is not in the fixture set                                                               |
+| `503`  | Model unavailable — body carries `kind`: `no-api-key` · `disabled` · `rate-limited` · `timeout` · `api-error` |
+
+A 503 is an expected state, not a fault: the deck has already painted from `/api/prs` before this is called. The UI shows the reason and keeps every score, rank and plan.
 
 ### 2.6 `POST /api/review-plan` ✅
 
