@@ -17,11 +17,11 @@ Single source of truth for what is built, what is pending, and what was delibera
   Phase 5  Review plan                ██████████  100%   ✅ done
   Phase 6  Explanation layer          ██████████  100%   ✅ done
   Phase 7  Reviewer engine            ░░░░░░░░░░    0%   ⚠ first to cut
-  Phase 8  Policy gate & eval         ░░░░░░░░░░    0%   ⬅ NEXT
-  Phase 9  Hardening & demo           ░░░░░░░░░░    0%
+  Phase 8  Policy gate & eval         ██████████  100%   ✅ done
+  Phase 9  Hardening & demo           ░░░░░░░░░░    0%   ⬅ NEXT
 ```
 
-**Health:** 147/147 tests pass · typecheck clean · production build succeeds
+**Health:** 181/181 tests pass · typecheck clean · production build succeeds
 
 ### The demo table — measured, reproducible
 
@@ -37,11 +37,11 @@ Reproduce: `npm test` (see `tests/risk-engine.test.mjs`).
 
 ### Never cut — these three _are_ the project
 
-|     | Phase                | Why                                            |
-| --- | -------------------- | ---------------------------------------------- |
-| 🔴  | **Risk Engine** (2)  | Without it this is a list with a swipe gesture |
-| ✅  | **Review Plan** (5)  | The only feature no competitor has — **built** |
-| 🔴  | **Eval harness** (8) | Turns an assertion into a measured result      |
+|     | Phase                | Why                                                   |
+| --- | -------------------- | ----------------------------------------------------- |
+| 🔴  | **Risk Engine** (2)  | Without it this is a list with a swipe gesture        |
+| ✅  | **Review Plan** (5)  | The only feature no competitor has — **built**        |
+| ✅  | **Eval harness** (8) | Turns an assertion into a measured result — **built** |
 
 ---
 
@@ -447,27 +447,75 @@ Build only if 2, 5 and 8 are genuinely finished.
 
 ---
 
-## Phase 8 — Policy gate & eval · 🔴 eval never cut
+## Phase 8 — Policy gate & eval ✅ · 🔴 eval never cut
 
-### Policy gate
+**Goal:** the numbers that win the Q&A — and a system that visibly refuses itself.
 
-- [ ] `policy/gate.ts` — can only _remove_ eligibility, never grant it
-- [ ] Rules: risk threshold, CI, critical paths, deps, test removal, protected files
-- [ ] `POST /api/triage` — persists the decision, performs no merge
-- [ ] Card flip-state showing the veto reason
-- [ ] **Test: critical paths can never be fast-tracked at any score**
-- [ ] Live demo: swipe right on the auth PR → visible refusal
+### Policy gate ✅
 
-### Eval harness 🔴
+- [x] [policy/gate.ts](src/lib/policy/gate.ts) — can only _remove_ eligibility, never grant it
+- [x] Rules: critical paths, risk ceiling, CI, dependencies, test removal, protected files
+- [x] **Critical paths are hard-coded, not configurable** — `ALWAYS_BLOCKED`
+- [x] Config may _extend_ the blocked set; `resolveNeverFastTrack` guarantees it cannot shrink it
+- [x] Every veto reported, not just the first — a reviewer deserves the whole reason
+- [x] `POST /api/triage` — records the decision, states `performedOnGitHub: "none"`
+- [x] [VetoCard.tsx](src/components/risk/VetoCard.tsx) — the card flips, PR stays in the deck
+- [x] `needs-review` and `defer` bypass the gate; only fast-track needs permission
 
-- [ ] `eval/dataset.ts` — mine merged PRs, label from outcomes
-- [ ] Labels: reverted · fix within 7d · changes-requested · >3 rounds · in later hotfix
-- [ ] `eval/run-eval.ts` — Recall@K, Precision@K, NDCG
-- [ ] Lines-changed baseline for comparison
-- [ ] `npm run eval`
-- [ ] **`eval/results.md` committed with real measured numbers**
-- [ ] Effort calibration — MAE vs time-to-first-review
-- [ ] Record which repo was tuned on vs tested on
+### Eval harness ✅ 🔴
+
+- [x] [eval/dataset.ts](eval/dataset.ts) — mines merged PRs, labels from outcomes
+- [x] Labels: reverted · fix within 7d · changes-requested · >3 review submissions · >3 inline comments · later hotfix
+- [x] Signals reconstructed at **merge time** — CI at head SHA, per-file churn, cached
+- [x] No leakage: nothing after the merge is used as a signal, only as a label
+- [x] [eval/metrics.ts](eval/metrics.ts) — Recall@K, Precision@K, NDCG, MAE
+- [x] Lines-changed baseline scored side by side
+- [x] `npm run eval -- --tuned-on <repo> --test-on <repo>`
+- [x] **[eval/results.md](eval/results.md) committed with real measured numbers**
+- [x] Tuned-on vs held-out recorded explicitly
+
+### ⚠️ The eval result is negative — and reported as such
+
+**On the held-out repo the lines-changed baseline beats PocketReview**
+(Recall@10 30.8% vs 15.4%; NDCG 0.788 vs 0.586). Reproduced across three
+repositories — the same pattern on `microsoft/vscode` and `facebook/react`.
+
+**Why**, and it matters more than the number: every label that fired was
+`many-rounds` or `heavy-discussion`. **Zero reverts. Zero follow-up fixes.** On
+these samples "needed attention" collapses into "generated discussion", and
+discussion tracks diff size (worthy PRs median 157 lines vs 104 overall). The
+benchmark therefore rewards a size proxy — and PocketReview is deliberately
+size-independent, so it loses by construction.
+
+This is a **dataset problem, not a refutation**, but it is not a validation
+either. What it would take to test the real claim: a repository whose recent
+history contains actual reverts and hotfixes, so the label reflects something
+going wrong rather than something being talked about.
+
+The first run was worse (Recall@10 3.3%) because the harness scored PRs with
+`history: false` and `ci: none` — confidence 0.43–0.58 against ~0.94 in
+production. That was measuring a strawman; it was fixed to recover CI at the
+head SHA and per-file churn (confidence now 0.88) before publishing anything.
+
+### Verification
+
+- [x] Live: fast-track on the critical payments PR → **refused, 4 reasons, unoverridable**
+- [x] Live: docs typo and lockfile → accepted; auth change → refused
+- [x] `needs-review` on a critical PR → accepted with no verdict
+- [x] 181/181 tests · typecheck clean · production build passes
+- [ ] Mobile layout at 390×844 — **still needs a human**
+
+### Tests — 34 added
+
+- [x] **A one-line auth change cannot be fast-tracked, however it scores**
+- [x] **Config actively trying to disable the critical-path rule fails to**
+- [x] Config may extend the blocked set but never shrink it
+- [x] A generated file in a critical directory does not trigger the veto
+- [x] CI failing _and_ pending both refuse; deps, test removal, protected paths
+- [x] Optional rules relax by config; the hard rule does not
+- [x] Eligibility is exactly the absence of vetoes — the gate cannot grant
+- [x] Metrics: Recall@K, Precision@K, NDCG, MAE hand-computed, tie-breaks deterministic
+- [x] A better scorer measurably beats a worse one
 
 ---
 
@@ -488,31 +536,34 @@ Build only if 2, 5 and 8 are genuinely finished.
 
 Things a judge may ask about. Each is a deliberate choice, not an accident.
 
-| #   | Decision                                                            | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| --- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Score computed in code; LLM only narrates                           | Makes _"why 87?"_ answerable. Turn the LLM off and the system still works.                                                                                                                                                                                                                                                                                                                                                                              |
-| 2   | Octokit replaces `gh` CLI                                           | ~800ms per subprocess spawn; 90 fetches ≈ 72s serial vs ~2.3s parallel HTTP. Also removes the demo-machine setup dependency.                                                                                                                                                                                                                                                                                                                            |
-| 3   | Approve endpoint deleted                                            | Directly contradicted the thesis. Our pitch is a trust deficit; solving it by having AI approve AI code argues against ourselves.                                                                                                                                                                                                                                                                                                                       |
-| 4   | Test files beat domain rules                                        | Otherwise adding tests to auth code _raises_ its risk. Backwards, and visible.                                                                                                                                                                                                                                                                                                                                                                          |
-| 5   | Generated files excluded from size scoring                          | A 4,000-line lockfile must never read as high risk. The most common naive-scoring false positive.                                                                                                                                                                                                                                                                                                                                                       |
-| 6   | Patch ranking: criticality dominates, size breaks ties              | Multiplying let a 200-line UI file (0.3×200) outrank a 15-line auth change (1.0×15). **Caught by a test.**                                                                                                                                                                                                                                                                                                                                              |
-| 7   | AI provenance needs ≥2 hints, weighted 0.08                         | Max ~3 points of 100. Source-agnostic — answers _"what about human-written PRs?"_                                                                                                                                                                                                                                                                                                                                                                       |
-| 8   | Confidence reported honestly                                        | A system hiding missing data can't be trusted about anything else.                                                                                                                                                                                                                                                                                                                                                                                      |
-| 9   | Reviewer engine is first to cut                                     | Same name on every card reads as broken and poisons the components next to it.                                                                                                                                                                                                                                                                                                                                                                          |
-| 10  | KPI is Recall@K, not "time saved"                                   | Time saved needs a control group that doesn't exist. Recall@K is measurable from history that already happened.                                                                                                                                                                                                                                                                                                                                         |
-| 11  | Floors added on top of the weighted sum                             | A weighted sum _averages_, and averaging is wrong for categorical facts. With six of seven dimensions structurally near-zero for a tiny diff, a maximally critical one-line change capped at ~35/100 — it would have been buried in the queue. A floor only ever raises, is bounded, names its reason, and doesn't distort large PRs the way reweighting would. **Found by the demo test failing at 30.**                                               |
-| 12  | `baselineScore()` ships in the engine                               | The lines-changed scorer lives beside the real one so the comparison is runnable, not asserted. It is what Phase 8's headline number is measured against.                                                                                                                                                                                                                                                                                               |
-| 13  | Demo mode swaps the data source, never the scoring                  | Fixtures run through the real engine, so the offline demo shows what the scorer genuinely produces. A demo with pre-computed scores would prove nothing and would break the moment a judge asked to change an input.                                                                                                                                                                                                                                    |
-| 14  | Age weighted 0.12, not a proportional 0.17, and capped at 0.7 raw   | Age is the only term every PR accrues _for free_ — no risk, no urgency, nothing waiting on it. At 0.17 the arithmetic inverted the thesis: a week-old typo fix scored 23.7 against 24.2 for a fresh one-line auth change. A queue where staleness rivals criticality is the failure this project exists to fix. Age still lifts a stale PR ~8 points past its equally-boring neighbours, which is all anti-starvation needs to do. **Found by a test.** |
-| 15  | Failing CI never demotes a _critical_ PR                            | Demotion encodes "the author will push again, don't spend attention yet". True for a routine change; false for a critical one. In demo mode the critical payments rewrite (risk 82) sank to the bottom of the queue under six trivial PRs — the exact misallocation the product exists to prevent. Demotion now applies within a severity tier. **Found by running the demo queue, not by a test.**                                                     |
-| 16  | Priority's 5th term redistributed, not stubbed                      | `reviewerAvailability` (0.10) needs the Phase 7 reviewer engine. Letting it contribute zero would cap every score at 0.90 and make the breakdown lie; a constant 1.0 would compress every score into the top 10%. Redistributing across the four computable terms keeps the weight-sum assertion honest, and Phase 7 reclaims it.                                                                                                                       |
-| 17  | Criticals reserved cheapest-first, not risk-first                   | "Force-include criticals" is ambiguous once several exist and not all fit. Reserving by risk lets one expensive critical crowd out two slightly-less-critical ones that would both have fit. Cheapest-first maximises how many criticals actually get reviewed, which is what the guarantee is for. Any that still do not fit are named in `warnings` rather than silently dropped.                                                                     |
-| 18  | Capacity is the reviewer's own budget, not an inferred roster       | The deficit panel needs an "available" figure. Deriving one from CODEOWNERS × assumed minutes/day would look sophisticated and be fabricated — exactly the number that collapses under a judge's follow-up. The budget picker value is a figure the reviewer controls and can vouch for.                                                                                                                                                                |
-| 19  | Exact DP, never a greedy ratio sort                                 | At n ≤ 50 with integer minutes the table is microseconds, so approximating buys nothing. A test pins the DP against brute force over 200 random instances; a second shows greedy losing 36-to-30 on the classic counter-example. "We solve it exactly" survives questioning; "we sort by ratio" does not.                                                                                                                                               |
-| 20  | The `claude` CLI subprocess replaced by the Anthropic SDK           | `chatWithClaude` shelled out to a `claude` binary: billed through a subscription rather than an API key, dependent on the CLI being installed and authenticated on the demo machine, and ~800ms of process spawn per call. It was also simply broken here — the CLI is not installed. Same reasoning as Decision Log #2 for `gh` → Octokit.                                                                                                             |
-| 21  | Explanations cached on `repo:number:headSha`, never `repo:number`   | The old chat cache omitted the head SHA and served a stale diff after any push. With the SHA in the key an unchanged PR is explained once, so a demo rehearsed twenty times costs one run of tokens. Measured: 9.9s cold, 0.04s warm, byte-identical prose.                                                                                                                                                                                             |
-| 22  | Files included whole or excluded, never half a patch                | A truncated hunk is indistinguishable from a complete one to the model, which will confidently describe a function it only saw half of. Files are ranked by consequence and included whole; whatever was withheld is named in the prompt so the model can say it did not see them rather than implying the change is smaller than it is.                                                                                                                |
-| 23  | Model tiering — Haiku for card lines, Sonnet for the explain screen | Deck summaries are the high-volume path and need one behavioural sentence; the explain screen is on demand and worth the larger model. Opus is deliberately unused — nothing here needs it. Measured cost across a full demo queue is a few cents.                                                                                                                                                                                                      |
+| #   | Decision                                                            | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Score computed in code; LLM only narrates                           | Makes _"why 87?"_ answerable. Turn the LLM off and the system still works.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 2   | Octokit replaces `gh` CLI                                           | ~800ms per subprocess spawn; 90 fetches ≈ 72s serial vs ~2.3s parallel HTTP. Also removes the demo-machine setup dependency.                                                                                                                                                                                                                                                                                                                                                |
+| 3   | Approve endpoint deleted                                            | Directly contradicted the thesis. Our pitch is a trust deficit; solving it by having AI approve AI code argues against ourselves.                                                                                                                                                                                                                                                                                                                                           |
+| 4   | Test files beat domain rules                                        | Otherwise adding tests to auth code _raises_ its risk. Backwards, and visible.                                                                                                                                                                                                                                                                                                                                                                                              |
+| 5   | Generated files excluded from size scoring                          | A 4,000-line lockfile must never read as high risk. The most common naive-scoring false positive.                                                                                                                                                                                                                                                                                                                                                                           |
+| 6   | Patch ranking: criticality dominates, size breaks ties              | Multiplying let a 200-line UI file (0.3×200) outrank a 15-line auth change (1.0×15). **Caught by a test.**                                                                                                                                                                                                                                                                                                                                                                  |
+| 7   | AI provenance needs ≥2 hints, weighted 0.08                         | Max ~3 points of 100. Source-agnostic — answers _"what about human-written PRs?"_                                                                                                                                                                                                                                                                                                                                                                                           |
+| 8   | Confidence reported honestly                                        | A system hiding missing data can't be trusted about anything else.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 9   | Reviewer engine is first to cut                                     | Same name on every card reads as broken and poisons the components next to it.                                                                                                                                                                                                                                                                                                                                                                                              |
+| 10  | KPI is Recall@K, not "time saved"                                   | Time saved needs a control group that doesn't exist. Recall@K is measurable from history that already happened.                                                                                                                                                                                                                                                                                                                                                             |
+| 11  | Floors added on top of the weighted sum                             | A weighted sum _averages_, and averaging is wrong for categorical facts. With six of seven dimensions structurally near-zero for a tiny diff, a maximally critical one-line change capped at ~35/100 — it would have been buried in the queue. A floor only ever raises, is bounded, names its reason, and doesn't distort large PRs the way reweighting would. **Found by the demo test failing at 30.**                                                                   |
+| 12  | `baselineScore()` ships in the engine                               | The lines-changed scorer lives beside the real one so the comparison is runnable, not asserted. It is what Phase 8's headline number is measured against.                                                                                                                                                                                                                                                                                                                   |
+| 13  | Demo mode swaps the data source, never the scoring                  | Fixtures run through the real engine, so the offline demo shows what the scorer genuinely produces. A demo with pre-computed scores would prove nothing and would break the moment a judge asked to change an input.                                                                                                                                                                                                                                                        |
+| 14  | Age weighted 0.12, not a proportional 0.17, and capped at 0.7 raw   | Age is the only term every PR accrues _for free_ — no risk, no urgency, nothing waiting on it. At 0.17 the arithmetic inverted the thesis: a week-old typo fix scored 23.7 against 24.2 for a fresh one-line auth change. A queue where staleness rivals criticality is the failure this project exists to fix. Age still lifts a stale PR ~8 points past its equally-boring neighbours, which is all anti-starvation needs to do. **Found by a test.**                     |
+| 15  | Failing CI never demotes a _critical_ PR                            | Demotion encodes "the author will push again, don't spend attention yet". True for a routine change; false for a critical one. In demo mode the critical payments rewrite (risk 82) sank to the bottom of the queue under six trivial PRs — the exact misallocation the product exists to prevent. Demotion now applies within a severity tier. **Found by running the demo queue, not by a test.**                                                                         |
+| 16  | Priority's 5th term redistributed, not stubbed                      | `reviewerAvailability` (0.10) needs the Phase 7 reviewer engine. Letting it contribute zero would cap every score at 0.90 and make the breakdown lie; a constant 1.0 would compress every score into the top 10%. Redistributing across the four computable terms keeps the weight-sum assertion honest, and Phase 7 reclaims it.                                                                                                                                           |
+| 17  | Criticals reserved cheapest-first, not risk-first                   | "Force-include criticals" is ambiguous once several exist and not all fit. Reserving by risk lets one expensive critical crowd out two slightly-less-critical ones that would both have fit. Cheapest-first maximises how many criticals actually get reviewed, which is what the guarantee is for. Any that still do not fit are named in `warnings` rather than silently dropped.                                                                                         |
+| 18  | Capacity is the reviewer's own budget, not an inferred roster       | The deficit panel needs an "available" figure. Deriving one from CODEOWNERS × assumed minutes/day would look sophisticated and be fabricated — exactly the number that collapses under a judge's follow-up. The budget picker value is a figure the reviewer controls and can vouch for.                                                                                                                                                                                    |
+| 19  | Exact DP, never a greedy ratio sort                                 | At n ≤ 50 with integer minutes the table is microseconds, so approximating buys nothing. A test pins the DP against brute force over 200 random instances; a second shows greedy losing 36-to-30 on the classic counter-example. "We solve it exactly" survives questioning; "we sort by ratio" does not.                                                                                                                                                                   |
+| 20  | The `claude` CLI subprocess replaced by the Anthropic SDK           | `chatWithClaude` shelled out to a `claude` binary: billed through a subscription rather than an API key, dependent on the CLI being installed and authenticated on the demo machine, and ~800ms of process spawn per call. It was also simply broken here — the CLI is not installed. Same reasoning as Decision Log #2 for `gh` → Octokit.                                                                                                                                 |
+| 21  | Explanations cached on `repo:number:headSha`, never `repo:number`   | The old chat cache omitted the head SHA and served a stale diff after any push. With the SHA in the key an unchanged PR is explained once, so a demo rehearsed twenty times costs one run of tokens. Measured: 9.9s cold, 0.04s warm, byte-identical prose.                                                                                                                                                                                                                 |
+| 22  | Files included whole or excluded, never half a patch                | A truncated hunk is indistinguishable from a complete one to the model, which will confidently describe a function it only saw half of. Files are ranked by consequence and included whole; whatever was withheld is named in the prompt so the model can say it did not see them rather than implying the change is smaller than it is.                                                                                                                                    |
+| 23  | Model tiering — Haiku for card lines, Sonnet for the explain screen | Deck summaries are the high-volume path and need one behavioural sentence; the explain screen is on demand and worth the larger model. Opus is deliberately unused — nothing here needs it. Measured cost across a full demo queue is a few cents.                                                                                                                                                                                                                          |
+| 24  | Critical-path blocking is a module constant, not a config field     | `PolicyConfig.neverFastTrack` can only _extend_ the blocked set; `resolveNeverFastTrack` unions it with a hard-coded `ALWAYS_BLOCKED`. A safety rule a settings file can switch off is not a safety rule — and "structurally impossible, not merely discouraged" is only true if a test proves a hostile config cannot disable it. One does.                                                                                                                                |
+| 25  | The eval publishes a result where we LOSE                           | On the held-out repo the lines-changed baseline beats us (Recall@10 30.8% vs 15.4%), reproduced across three repositories. The cause is the dataset: every label that fired was `many-rounds`/`heavy-discussion`, zero reverts, and discussion tracks diff size — so the benchmark rewards a size proxy while PocketReview is deliberately size-independent. Publishing the loss with that diagnosis is worth more than a number we would have to defend under questioning. |
+| 26  | The eval was fixed before publishing, not after seeing the numbers  | The first run scored PRs with `history: false` and `ci: none` (confidence 0.43–0.58 vs ~0.94 in production) — a strawman of our own engine. CI at the head SHA and per-file churn were added, confidence rose to 0.88, and the result _still_ favoured the baseline. Fixing the harness because it was wrong, not because the answer was unwelcome, is the distinction that matters.                                                                                        |
 
 ---
 
@@ -520,10 +571,10 @@ Things a judge may ask about. Each is a deliberate choice, not an accident.
 
 ```bash
 npm run dev         # dev server, port 3000
-npm test            # 147 tests, offline
+npm test            # 181 tests, offline
 npm run typecheck   # tsc --noEmit
 npm run build       # production build
-npm run eval        # Phase 8 — not yet implemented
+npm run eval        # mine + score merged PRs (needs GITHUB_TOKEN)
 ```
 
 ---
@@ -540,4 +591,4 @@ A phase is complete when:
 
 ---
 
-_Last verified: 2026-09-03 — Phase 6 complete, 147/147 tests, verified against live GitHub and with the LLM disabled._
+_Last verified: 2026-09-04 — Phase 8 complete, 181/181 tests, eval run against three repositories._

@@ -37,7 +37,7 @@
 | `GET /api/reviewers`                 | 🕐 Planned — Phase 7 | §8             |
 | `POST /api/review-plan`              | ✅ Shipped           | §9             |
 | `GET /api/capacity`                  | ✅ Shipped           | §9             |
-| `POST /api/triage`                   | 🕐 Planned — Phase 8 | §11            |
+| `POST /api/triage`                   | ✅ Shipped           | §11            |
 
 **Authentication.** All GitHub and Anthropic credentials are read server-side from the process environment. Clients send **no** `Authorization` header — see [security.md](./security.md).
 
@@ -356,9 +356,42 @@ export interface ReviewerMatch {
 
 Phase 7 is **first to cut**. The UI must hide the reviewer card when `confidence < 0.4`.
 
-### 3.5 `POST /api/triage` 🕐 Phase 8
+### 2.9 `POST /api/triage` ✅
 
-`{ repo, number, action }` → persists a `TriageRecord`, applies the policy gate, returns a `PolicyVerdict`. **Performs no merge and no approval.**
+**Handler:** [src/app/api/triage/route.ts](../src/app/api/triage/route.ts)
+
+`{ repo, number, action }` → applies the policy gate and returns the record plus a `PolicyVerdict`.
+
+**Performs no merge and no approval** — the response says so explicitly (`performedOnGitHub: "none"`).
+
+```jsonc
+// Refused fast-track
+{
+  "accepted": false,
+  "record": null,
+  "verdict": {
+    "eligible": false,
+    "structurallyBlocked": true,
+    "vetoes": [
+      {
+        "reason": "critical-path",
+        "label": "Touches a critical path",
+        "detail": "payments, database — src/payments/settlement.ts and 2 more",
+      },
+      {
+        "reason": "risk-too-high",
+        "label": "Risk above the fast-track ceiling",
+        "detail": "scored 82, ceiling is 25",
+      },
+    ],
+  },
+  "performedOnGitHub": "none",
+}
+```
+
+`needs-review` and `defer` skip the gate entirely — neither reduces scrutiny, so neither needs permission. Only `fast-track` is gated.
+
+**`structurallyBlocked: true`** means a hard-coded rule fired. auth, payments and database can never be fast-tracked at any score under any configuration — see [security.md](./security.md).
 
 ---
 

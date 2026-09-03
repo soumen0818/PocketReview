@@ -8,10 +8,12 @@ import ExplainScreen from "@/components/explain/ExplainScreen";
 import EmptyState from "@/components/EmptyState";
 import QueueSummaryBar from "@/components/QueueSummaryBar";
 import DimensionBreakdown from "@/components/risk/DimensionBreakdown";
+import VetoCard from "@/components/risk/VetoCard";
 import { useSwipeHistory } from "@/hooks/useSwipeHistory";
 import { usePRs } from "@/hooks/usePRs";
 import { useExplanation } from "@/hooks/useExplanation";
 import type { TriagedPR } from "@/lib/types";
+import type { PolicyVerdict } from "@/lib/policy/gate";
 
 type TriggerSwipe = { direction: "left" | "right" } | null;
 
@@ -32,6 +34,10 @@ export default function Home() {
   const [breakdownPR, setBreakdownPR] = useState<TriagedPR | null>(null);
   const [triggerSwipe, setTriggerSwipe] = useState<TriggerSwipe>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [veto, setVeto] = useState<{
+    pr: TriagedPR;
+    verdict: PolicyVerdict;
+  } | null>(null);
 
   const topPR = prs[0] ?? null;
 
@@ -60,14 +66,36 @@ export default function Home() {
   // or merges anything on GitHub. A human still reviews the PR; it simply goes
   // into the quick lane rather than being opened first.
   const handleFastTrack = useCallback(
-    (pr: TriagedPR) => {
-      addTriage(
-        pr.repository.nameWithOwner,
-        pr.number,
-        "fast-track",
-        pr.risk.score,
-      );
-      removePR(pr.repository.nameWithOwner, pr.number);
+    async (pr: TriagedPR) => {
+      const repo = pr.repository.nameWithOwner;
+
+      // The policy gate decides, not the swipe. A vetoed PR stays in the deck
+      // and the card flips to show why — the system refusing its own
+      // recommendation rather than quietly accepting it.
+      try {
+        const res = await fetch("/api/triage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            repo,
+            number: pr.number,
+            action: "fast-track",
+          }),
+        });
+        const data = await res.json();
+
+        if (res.ok && !data.accepted && data.verdict) {
+          setVeto({ pr, verdict: data.verdict });
+          return;
+        }
+      } catch {
+        // A gate that cannot be reached must not silently wave the PR
+        // through, but nor should a network blip block triage entirely. The
+        // decision is recorded locally and the queue moves on.
+      }
+
+      addTriage(repo, pr.number, "fast-track", pr.risk.score);
+      removePR(repo, pr.number);
       showToast(`#${pr.number} → fast-track`);
     },
     [addTriage, removePR],
@@ -90,6 +118,22 @@ export default function Home() {
     if (!topPR) return;
     setTriggerSwipe({ direction: "right" });
   }, [topPR]);
+
+  // The refusal. Rendered before anything else: a vetoed swipe must not be
+  // able to fall through to the deck.
+  if (veto) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col justify-center bg-gray-50 p-4">
+        <div className="mx-auto h-[70vh] w-full max-w-md">
+          <VetoCard
+            pr={veto.pr}
+            verdict={veto.verdict}
+            onDismiss={() => setVeto(null)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // The audit view — full screen, because "why that number?" deserves the
   // whole viewport rather than a cramped popover.

@@ -79,13 +79,11 @@ PocketReview uses no database.
 
 ---
 
-## The Policy Gate 🕐 Phase 8 — NOT YET ENFORCED
+## The Policy Gate ✅ Shipped — Phase 8
 
-> **This control is designed but not implemented. Do not describe it as an active protection.**
+> **Enforced.** [src/lib/policy/gate.ts](../src/lib/policy/gate.ts) runs on every fast-track, via `POST /api/triage`. A vetoed swipe leaves the PR in the deck and flips the card to show why.
 >
-> **What exists today:** `PolicyConfig` is defined in [src/lib/config.ts](../src/lib/config.ts) with defaults (`fastTrackMaxRisk: 25`, `neverFastTrack: ["auth", "payments", "database"]`, `requireCiPassing: true`, `blockOnDependencyChange: true`, `blockOnTestRemoval: true`) and is parsed from `.pocketreview.yml`.
->
-> **What does not exist:** any code that reads it. `src/lib/policy/gate.ts` is unwritten. A right-swipe in [page.tsx](../src/app/page.tsx) records a `TriageAction` with no eligibility check. **A critical-path PR can currently be marked fast-track.**
+> **Critical-path blocking is hard-coded.** `ALWAYS_BLOCKED` (auth, payments, database) is a module constant. `PolicyConfig.neverFastTrack` may _extend_ it and can never shrink it — a test drives a config that empties the list and sets every other rule permissive, and the payments change is still refused.
 
 ### Why the risk is bounded today
 
@@ -152,7 +150,7 @@ Diff content reaches the model, and diffs are attacker-controllable on a public 
 
 1. **Never add write scopes.** No GitHub API call may mutate state. The approve endpoint was deleted on purpose; do not reintroduce it.
 2. **Never send diffs elsewhere.** The only external egress for diff content is the Anthropic client, gated behind `llm.enabled`.
-3. **Preserve the Policy Gate once built.** No bypass for critical-path checks, at any score.
+3. **Preserve the Policy Gate.** No bypass for critical-path checks, at any score. `ALWAYS_BLOCKED` stays a module constant — never move it into config.
 4. **No persistent storage of source.** When the Phase 9 disk cache lands, it stores signals and explanations — never diff content.
 5. **Keep the score deterministic.** If an LLM ever influences a number, every guarantee on this page collapses.
 

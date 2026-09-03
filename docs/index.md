@@ -123,14 +123,14 @@ Full reasoning in the [Decision Log](./PROGRESS.md#decision-log).
   Phase 4  Priority & effort          ██████████  100%   ✅
   Phase 5  Review plan                ██████████  100%   ✅
   Phase 6  Explanation layer          ██████████  100%   ✅
+  Phase 8  Policy gate & eval         ██████████  100%   ✅
   Phase 7  Reviewer engine            ░░░░░░░░░░    0%   ⚠ first to cut
-  Phase 8  Policy gate & eval         ░░░░░░░░░░    0%   ⬅ NEXT
-  Phase 9  Hardening & demo           ░░░░░░░░░░    0%
+  Phase 9  Hardening & demo           ░░░░░░░░░░    0%   ⬅ NEXT
 ```
 
-**147/147 tests pass · typecheck clean · production build succeeds.**
+**181/181 tests pass · typecheck clean · production build succeeds.**
 
-Never cut: **Risk Engine** (2) ✅, **Review Plan** (5) ✅, **Eval harness** (8). Those three are the project; everything else is presentation.
+Never cut: **Risk Engine** (2) ✅, **Review Plan** (5) ✅, **Eval harness** (8) ✅. Those three are the project; everything else is presentation.
 
 ---
 
@@ -173,7 +173,7 @@ tests/
 └── helpers/signals.mjs
 ```
 
-Directories in architecture §15 that do not exist yet: `lib/engines/reviewer-engine.ts`, `lib/policy/`, `lib/cache/`, `eval/`, `fixtures/`.
+Directories in architecture §15 that do not exist yet: `lib/engines/reviewer-engine.ts`, `lib/cache/`, `fixtures/`.
 
 ---
 

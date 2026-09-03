@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.mjs",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "eval": "tsx --env-file=.env.local eval/run-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
