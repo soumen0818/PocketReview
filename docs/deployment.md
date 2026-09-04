@@ -80,6 +80,14 @@ Or push to GitHub and import the repo at [vercel.com/new](https://vercel.com/new
 
 Vercel detects Next.js automatically — no build configuration needed.
 
+> **`.npmrc` must be committed.** `react-tinder-card` declares a peer
+> dependency on `@react-spring/web@^9` and has not been updated for v10, which
+> this project uses. Locally that is masked by `npm install --legacy-peer-deps`;
+> Vercel runs a plain `npm install` and the build fails with `ERESOLVE`. The
+> committed `.npmrc` sets `legacy-peer-deps=true` so both environments behave
+> the same. If you see `ERESOLVE` in a Vercel build log, check that file exists
+> in the repo.
+
 ---
 
 ## Step 3 — Set environment variables
@@ -118,26 +126,49 @@ the homepage and callback URLs correctly. Sign-in fails with
 ## Optional — Add a shared cache
 
 Without Redis the app keeps an in-memory cache per serverless instance, so a
-cold start refetches from GitHub. That is a few seconds, not a failure.
+cold start refetches from GitHub. That is a few seconds, not a failure — the
+app works fine without this.
 
-To make it faster: **Vercel → Storage → Marketplace → Upstash for Redis**. The
-free tier (500K commands/month, 256MB) is ample.
+There are two ways to add one, and the app accepts either.
 
-**You do not add any environment variables by hand.** Vercel injects them when
-you connect the database — then **redeploy**, because Vercel does not apply new
-variables to an existing build.
+### Option A — your own Upstash account
 
-The variable names differ depending on how you connect, and the app accepts
-both:
+Use this if you already have an Upstash database, or want it independent of
+Vercel.
 
-| How you connected  | Variables injected                                   |
+1. At [console.upstash.com](https://console.upstash.com) open your database
+2. In **REST API**, copy **`UPSTASH_REDIS_REST_URL`** and
+   **`UPSTASH_REDIS_REST_TOKEN`**
+3. Add both in **Vercel → Settings → Environment Variables**
+4. **Redeploy** — Vercel does not apply new variables to an existing build
+
+Pick a region close to your Vercel deployment; a cache round trip across
+continents can cost more than the fetch it replaces.
+
+### Option B — the Vercel Marketplace
+
+**Vercel → Storage → Marketplace → Upstash for Redis.** Vercel provisions the
+database and injects the credentials for you — you add nothing by hand, but you
+still need to **redeploy**.
+
+### Either way
+
+| How you connected  | Variables                                            |
 | ------------------ | ---------------------------------------------------- |
+| Your own Upstash   | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
 | Vercel Marketplace | `KV_REST_API_URL`, `KV_REST_API_TOKEN`               |
-| Upstash directly   | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
 
 The Marketplace names are inherited from the sunset Vercel KV product. Reading
 only one pair would leave the cache silently disabled with no error — the app
-would keep working, just slower on every cold start — so both are supported.
+would keep working, just slower on every cold start — so both are supported,
+and a test pins that.
+
+The free tier (500K commands/month, 256MB) is ample: the app caches PR signals
+and explanations, keyed per user and expiring after 24 hours.
+
+**Confirming it works:** Upstash's console shows a command counter. It is
+non-zero once the cache is live. You should also notice the first load after a
+cold start dropping from a few seconds to near-instant.
 
 > Vercel KV was sunset in December 2024 and migrated to Upstash — if a tutorial
 > mentions `@vercel/kv`, it predates that change.
@@ -182,6 +213,7 @@ Then sign in through the browser and confirm you see **your own** PRs.
 
 | Symptom                             | Cause                                                                                         |
 | ----------------------------------- | --------------------------------------------------------------------------------------------- |
+| `ERESOLVE` during install           | `.npmrc` is missing from the repo — it carries `legacy-peer-deps=true` for a stale peer range |
 | `redirect_uri_mismatch`             | Callback URL in the OAuth app does not exactly match `https://<host>/api/auth/callback`       |
 | Throws on startup                   | `SESSION_SECRET` missing or under 32 characters                                               |
 | Signed out on every request         | `SESSION_SECRET` differs between Vercel environments, or changed after users signed in        |
