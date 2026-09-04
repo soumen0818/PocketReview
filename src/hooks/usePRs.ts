@@ -6,6 +6,8 @@ import type { TriagedPR, QueueSummary } from "@/lib/types";
 interface QueueResponse {
   prs: TriagedPR[];
   summary: QueueSummary;
+  /** Present when the queue was served from cache. */
+  stale?: { ageMs: number; reason: string } | null;
 }
 
 const EMPTY_SUMMARY: QueueSummary = {
@@ -26,9 +28,20 @@ const EMPTY_SUMMARY: QueueSummary = {
  */
 export function usePRs(
   hasReviewed: (repo: string, prNumber: number) => boolean,
+  /**
+   * False until stored triage decisions have been read.
+   *
+   * Fetching before then would filter against an empty history and briefly
+   * resurrect every PR the user already triaged — the flash of stale data is
+   * worse than waiting a tick for localStorage.
+   */
+  historyLoaded = true,
 ) {
   const [prs, setPRs] = useState<TriagedPR[]>([]);
   const [summary, setSummary] = useState<QueueSummary>(EMPTY_SUMMARY);
+  const [stale, setStale] = useState<{ ageMs: number; reason: string } | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +70,7 @@ export function usePRs(
 
       setPRs(remaining);
       setSummary(data.summary ?? EMPTY_SUMMARY);
+      setStale(data.stale ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -65,8 +79,8 @@ export function usePRs(
   }, []);
 
   useEffect(() => {
-    fetchPRs();
-  }, [fetchPRs]);
+    if (historyLoaded) fetchPRs();
+  }, [fetchPRs, historyLoaded]);
 
   const removePR = useCallback((repo: string, prNumber: number) => {
     setPRs((prev) =>
@@ -77,5 +91,5 @@ export function usePRs(
     );
   }, []);
 
-  return { prs, summary, loading, error, refetch: fetchPRs, removePR };
+  return { prs, summary, stale, loading, error, refetch: fetchPRs, removePR };
 }

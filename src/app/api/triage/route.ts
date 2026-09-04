@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth/guard";
+import { toErrorResponse, notFound, readJsonBody } from "@/lib/api-error";
+import { isValidRepo } from "@/lib/signals/github";
 import { collectSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
 import { evaluateFastTrack } from "@/lib/policy/gate";
-import { loadConfig, isDemoMode } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
 import { guardRequest } from "@/lib/api-auth";
 import type { TriageAction } from "@/lib/types";
@@ -28,14 +31,12 @@ export async function POST(request: Request) {
   if (guard) return guard;
 
   let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Request body must be JSON." },
-      { status: 400 },
-    );
-  }
+  return withAuth(async (identity) => {
+    try {
+      body = await readJsonBody(request);
+    } catch (error) {
+      return toErrorResponse(error);
+    }
 
   const raw = (body ?? {}) as Record<string, unknown>;
   const repo = typeof raw.repo === "string" ? raw.repo : undefined;
@@ -74,42 +75,65 @@ export async function POST(request: Request) {
 
     if (!signals) {
       return NextResponse.json(
-        { error: `${repo}#${number} not found.` },
-        { status: 404 },
+        { error: `Invalid repository "${repo}" — expected "owner/name".` },
+        { status: 400 },
       );
     }
 
-    const risk = assessRisk(signals, { thresholds: config.thresholds });
+    if (!Number.isInteger(number) || (number as number) <= 0) {
+      return NextResponse.json(
+        { error: "`number` must be a positive integer." },
+        { status: 400 },
+      );
+    }
 
-    // Only fast-track passes through the gate. Sending a PR to deep review or
-    // deferring it needs no permission — neither reduces the scrutiny it gets.
-    const verdict =
-      action === "fast-track"
-        ? evaluateFastTrack(signals, risk, { policy: config.policy })
-        : null;
+    if (!action || !ACTIONS.includes(action)) {
+      return NextResponse.json(
+        { error: `\`action\` must be one of: ${ACTIONS.join(", ")}.` },
+        { status: 400 },
+      );
+    }
 
-    const accepted = action !== "fast-track" || (verdict?.eligible ?? false);
+    try {
+      const config = await loadConfig();
 
-    // The record the client stores. `riskAtDecision` is the audit trail: it
-    // lets the queue later say "you fast-tracked this at 18; it now scores 61".
-    const record = {
-      repo,
-      prNumber: number,
-      action,
-      riskAtDecision: risk.score,
-      timestamp: Date.now(),
-    };
+      const signals = identity.demo
+        ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
+        : await collectSignals(repo, number as number, { rules: config.rules });
 
-    return NextResponse.json({
-      accepted,
-      record: accepted ? record : null,
-      verdict,
-      // Stated in the response, not just the docs: this endpoint never writes
-      // to GitHub, whatever the verdict.
-      performedOnGitHub: "none",
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+      if (!signals) throw notFound(`${repo}#${number}`);
+
+      const risk = assessRisk(signals, { thresholds: config.thresholds });
+
+      // Only fast-track passes through the gate. Sending a PR to deep review or
+      // deferring it needs no permission — neither reduces the scrutiny it gets.
+      const verdict =
+        action === "fast-track"
+          ? evaluateFastTrack(signals, risk, { policy: config.policy })
+          : null;
+
+      const accepted = action !== "fast-track" || (verdict?.eligible ?? false);
+
+      // The record the client stores. `riskAtDecision` is the audit trail: it
+      // lets the queue later say "you fast-tracked this at 18; it now scores 61".
+      const record = {
+        repo,
+        prNumber: number,
+        action,
+        riskAtDecision: risk.score,
+        timestamp: Date.now(),
+      };
+
+      return NextResponse.json({
+        accepted,
+        record: accepted ? record : null,
+        verdict,
+        // Stated in the response, not just the docs: this endpoint never writes
+        // to GitHub, whatever the verdict.
+        performedOnGitHub: "none",
+      });
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  });
 }

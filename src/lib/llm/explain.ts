@@ -24,6 +24,7 @@ import { ExplanationCache } from "./cache";
 import { prioritiseDiff } from "./diff-prioritise";
 import { redactSecrets } from "../signals/diff";
 import { loadConfig } from "../config";
+import { currentUserId } from "../signals/github";
 import type { PRSignals } from "../signals/types";
 import type { RiskAssessment } from "../engines/types";
 
@@ -165,7 +166,27 @@ MEASURED SIGNALS
   Author: ${signals.author}${signals.authorIsFirstTimeContributor ? " (first-time contributor)" : ""}`;
 }
 
-/** Extract the model's JSON, tolerating prose around it. */
+/** Longest prose field we will render. Generous for 2-3 sentences. */
+const MAX_PROSE_CHARS = 1200;
+
+/** Longest single list item. */
+const MAX_ITEM_CHARS = 300;
+
+/**
+ * Extract the model's JSON, tolerating prose around it.
+ *
+ * Everything here treats the response as untrusted input, because it is: the
+ * diff that produced it is attacker-controllable on a public repository. Three
+ * defences, none of which rely on the model behaving:
+ *
+ *   - malformed JSON raises `LLMUnavailable`, not a raw `SyntaxError` that
+ *     would surface as a 500 rather than "explanation unavailable";
+ *   - every field is type-checked before use, so a number or object where a
+ *     string was expected degrades to empty rather than rendering `[object
+ *     Object]`;
+ *   - every field is length-capped, so a runaway response cannot push
+ *     megabytes of text into the DOM.
+ */
 function parseExplanation(
   text: string,
 ): Omit<Explanation, "model" | "diffTruncated"> {
@@ -174,20 +195,37 @@ function parseExplanation(
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = (fenced ? fenced[1] : text).trim();
 
-  const parsed = JSON.parse(candidate) as Record<string, unknown>;
+  let parsed: Record<string, unknown>;
+  try {
+    const value = JSON.parse(candidate);
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("not an object");
+    }
+    parsed = value as Record<string, unknown>;
+  } catch {
+    throw new LLMUnavailable(
+      "api-error",
+      "The model returned a response that could not be read.",
+    );
+  }
+
+  const asString = (v: unknown, max: number): string =>
+    typeof v === "string" ? v.slice(0, max) : "";
 
   const asStringArray = (v: unknown): string[] =>
-    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    Array.isArray(v)
+      ? v
+          .filter((x): x is string => typeof x === "string")
+          .map((x) => x.slice(0, MAX_ITEM_CHARS))
+          .slice(0, 5)
+      : [];
 
   return {
-    oneLine:
-      typeof parsed.oneLine === "string" ? parsed.oneLine.slice(0, 120) : "",
-    whatChanged:
-      typeof parsed.whatChanged === "string" ? parsed.whatChanged : "",
-    whyItMatters:
-      typeof parsed.whyItMatters === "string" ? parsed.whyItMatters : "",
-    whereToLookFirst: asStringArray(parsed.whereToLookFirst).slice(0, 5),
-    questionsToAsk: asStringArray(parsed.questionsToAsk).slice(0, 5),
+    oneLine: asString(parsed.oneLine, 120),
+    whatChanged: asString(parsed.whatChanged, MAX_PROSE_CHARS),
+    whyItMatters: asString(parsed.whyItMatters, MAX_PROSE_CHARS),
+    whereToLookFirst: asStringArray(parsed.whereToLookFirst),
+    questionsToAsk: asStringArray(parsed.questionsToAsk),
   };
 }
 
@@ -222,7 +260,10 @@ export async function explainRisk(
     );
   }
 
+  // Namespaced per user: an explanation of a private PR must never be served
+  // to a different account that cannot see that repository.
   const key = ExplanationCache.key(
+    currentUserId() ?? "local",
     signals.repo,
     signals.number,
     signals.headSha,
@@ -287,6 +328,10 @@ Explain this pull request as JSON matching the required schema.`;
  * Haiku rather than Sonnet: this is the high-volume path — potentially every
  * card in the queue — and a single behavioural sentence does not need the
  * larger model.
+ *
+ * Takes no `RiskAssessment` on purpose: the card already renders the computed
+ * score beside this sentence, and handing the model a number it does not need
+ * is an invitation to restate it — wrongly.
  */
 export async function summarisePR(
   signals: PRSignals,
@@ -302,6 +347,7 @@ export async function summarisePR(
   }
 
   const key = ExplanationCache.key(
+    currentUserId() ?? "local",
     signals.repo,
     signals.number,
     signals.headSha,

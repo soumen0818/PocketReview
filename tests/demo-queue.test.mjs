@@ -12,7 +12,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { DEMO_SIGNALS } = await import("../src/lib/demo/fixtures.ts");
+// The hand-built set, not `DEMO_SIGNALS`. These tests pin the specific
+// scenarios the demo narrative depends on — a one-line auth change, a huge
+// lockfile, a payments rewrite. `DEMO_SIGNALS` prefers captured real PRs when
+// `fixtures/prs.json` exists, and those are whatever the repo happens to have.
+const { HAND_BUILT_SIGNALS: DEMO_SIGNALS } =
+  await import("../src/lib/demo/fixtures.ts");
 const { assessRisk, baselineScore } =
   await import("../src/lib/engines/risk-engine.ts");
 
@@ -117,5 +122,66 @@ test("demo scoring is deterministic", () => {
       scoreQueue().map((pr) => `${pr.number}:${pr.risk.score}`),
       first,
     );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Whatever DEMO_MODE actually serves
+// ---------------------------------------------------------------------------
+
+test("DEMO_SIGNALS is scoreable whatever it resolves to", async () => {
+  // `DEMO_SIGNALS` is the captured real PRs when `fixtures/prs.json` exists and
+  // the hand-built set otherwise. The narrative assertions above only hold for
+  // the hand-built scenarios, but *this* must hold either way: the demo must
+  // never crash or produce a malformed card.
+  const { DEMO_SIGNALS, USING_CAPTURED_FIXTURES } =
+    await import("../src/lib/demo/fixtures.ts");
+
+  assert.ok(DEMO_SIGNALS.length > 0, "demo mode must have something to show");
+  assert.equal(typeof USING_CAPTURED_FIXTURES, "boolean");
+
+  for (const signals of DEMO_SIGNALS) {
+    const risk = assessRisk(signals);
+
+    assert.ok(
+      Number.isInteger(risk.score),
+      `#${signals.number} score not an integer`,
+    );
+    assert.ok(
+      risk.score >= 0 && risk.score <= 100,
+      `#${signals.number} out of range`,
+    );
+    assert.equal(
+      risk.dimensions.length,
+      7,
+      `#${signals.number} missing dimensions`,
+    );
+    assert.ok(risk.topReasons.length > 0, `#${signals.number} has no reasons`);
+  }
+});
+
+test("committed fixtures carry no source code", async () => {
+  // `fixtures/prs.json` is captured from a real repository and committed, so it
+  // must contain measurements only. The hand-built set is exempt: its patches
+  // are synthetic, authored here, and are what make the demo scenarios work.
+  const { readFile } = await import("node:fs/promises");
+
+  let raw;
+  try {
+    raw = await readFile("fixtures/prs.json", "utf8");
+  } catch {
+    return; // Nothing captured yet — nothing to leak.
+  }
+
+  const { signals } = JSON.parse(raw);
+
+  for (const pr of signals) {
+    for (const file of pr.files) {
+      assert.equal(
+        file.patch,
+        undefined,
+        `captured #${pr.number} ${file.path} carries diff content`,
+      );
+    }
   }
 });

@@ -38,6 +38,8 @@ const {
 const { clamp, saturate, normalisedEntropy, weightedMean, ratio } =
   await import("../src/lib/math.ts");
 
+const { isValidRepo } = await import("../src/lib/signals/github.ts");
+
 // ---------------------------------------------------------------------------
 // Path classification
 // ---------------------------------------------------------------------------
@@ -335,4 +337,127 @@ test("weighted mean respects weights", () => {
 test("ratio is safe at zero", () => {
   assert.equal(ratio(5, 0), 0);
   assert.equal(ratio(1, 4), 0.25);
+});
+
+// ---------------------------------------------------------------------------
+// Redaction coverage — every format we have seen in a real diff
+// ---------------------------------------------------------------------------
+
+test("redaction covers the common secret formats", () => {
+  // Each of these reached an external service unredacted at some point during
+  // development. The list is the regression guard.
+  const cases = [
+    [
+      "GitHub classic PAT",
+      "const t = 'ghp_abcdefghij0123456789ABCDEFGHIJ012345'",
+    ],
+    [
+      "GitHub fine-grained PAT",
+      "TOKEN=github_pat_11ABCDEFG0abcdefghij_ABCdefGHIjklMNOpqrSTUvwxYZ01",
+    ],
+    ["Anthropic key", "key: 'sk-ant-api03-AbCdEfGh1234567890_-xyzXYZ'"],
+    ["AWS access key id", "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE"],
+    [
+      "AWS secret access key",
+      "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    ],
+    [
+      "Slack bot token",
+      "SLACK=xoxb-123456789012-1234567890123-AbCdEfGhIjKlMnOpQrSt",
+    ],
+    [
+      "Stripe live key",
+      "STRIPE=sk_live_51AbCdEfGhIjKlMnOpQrStUvWxYz0123456789",
+    ],
+    ["Google API key", "GOOGLE=AIzaSyA1234567890abcdefghijklmnopqrstuv"],
+    ["quoted password", 'password: "hunter2hunter2"'],
+    ["unquoted env password", "DATABASE_PASSWORD=supersecret123456"],
+    [
+      "connection-string credential",
+      "DATABASE_URL=postgres://user:p4ssw0rd@db.host:5432/prod",
+    ],
+    [
+      "JWT",
+      "auth=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N",
+    ],
+    [
+      "private key block",
+      [
+        "-----BEGIN RSA PRIVATE KEY-----",
+        "MIIEpAIBAAKC",
+        "-----END RSA PRIVATE KEY-----",
+      ].join("\n"),
+    ],
+  ];
+
+  for (const [name, input] of cases) {
+    assert.ok(
+      redactSecrets(input).includes("[REDACTED"),
+      `${name} was NOT redacted: ${input.slice(0, 60)}`,
+    );
+  }
+});
+
+test("redaction leaves ordinary code alone", () => {
+  // Over-redaction makes the explanation useless, so false positives matter.
+  const benign = [
+    "const tokenCount = countTokens(text)",
+    "// token: describes a lexer token here",
+    "import { getToken } from './auth'",
+    "if (user.password !== undefined) {",
+    "type Secret = { id: string }",
+    "const apiKey = process.env.API_KEY",
+  ];
+
+  for (const line of benign) {
+    assert.equal(redactSecrets(line), line, `false positive on: ${line}`);
+  }
+});
+
+test("a redacted connection string stays readable", () => {
+  const out = redactSecrets(
+    "DATABASE_URL=postgres://user:p4ssw0rd@db.host:5432/prod",
+  );
+
+  assert.ok(out.includes("postgres://user:"), "scheme and user survive");
+  assert.ok(out.includes("@db.host:5432/prod"), "host survives");
+  assert.ok(!out.includes("p4ssw0rd"), "the password does not");
+});
+
+test("repository slugs are validated to GitHub's real shape", () => {
+  for (const good of [
+    "facebook/react",
+    "soumen0818/ACREDIA-STELLAR",
+    "my.org/my.repo",
+    "a/b",
+    "org_name/repo-name.js",
+  ]) {
+    assert.ok(isValidRepo(good), `should accept ${JSON.stringify(good)}`);
+  }
+
+  // Everything below reached the HTTP layer and the cache key under the old
+  // "one slash, anything else" rule.
+  const bad = [
+    "../etc",
+    "../..",
+    "owner/na" + String.fromCharCode(10) + "me",
+    "owner/na" + String.fromCharCode(0) + "me",
+    "owner/na me",
+    "owner/name?x=1",
+    "owner/name#frag",
+    "owner/na:me",
+    "owner/na" + String.fromCharCode(0x202e) + "me",
+    "a".repeat(40) + "/b",
+    "/leading",
+    "trailing/",
+    "no-slash",
+    "",
+  ];
+
+  for (const value of bad) {
+    assert.ok(!isValidRepo(value), `should reject ${JSON.stringify(value)}`);
+  }
+
+  assert.ok(!isValidRepo(null));
+  assert.ok(!isValidRepo(undefined));
 });

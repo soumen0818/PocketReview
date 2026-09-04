@@ -14,53 +14,109 @@
  */
 
 import { Octokit } from "@octokit/rest";
+import { AsyncLocalStorage } from "async_hooks";
 
 /** Concurrency ceiling for parallel GitHub calls. */
 const MAX_CONCURRENT = 6;
 
-let cachedClient: Octokit | null = null;
+/**
+ * Per-request GitHub identity.
+ *
+ * **This is the multi-tenancy boundary.** A module-level `let cachedClient`
+ * would be shared by every concurrent request in the process, so on a
+ * multi-user deployment User B's queue could be fetched with User A's token —
+ * a cross-account data leak, not a performance bug.
+ *
+ * `AsyncLocalStorage` scopes the client to one request's async context, so
+ * every call made while handling a request automatically uses that request's
+ * credentials, without threading a token parameter through eighteen call
+ * sites where one missed thread would reintroduce the leak.
+ */
+interface RequestContext {
+  octokit: Octokit;
+  /** GitHub login of the signed-in user, when known. */
+  login: string | null;
+  /** Stable per-user key for cache namespacing. */
+  userId: number | null;
+}
 
-/** Shared Octokit instance, created on first use. */
-export function github(): Octokit {
-  if (cachedClient) return cachedClient;
+const context = new AsyncLocalStorage<RequestContext>();
 
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    throw new Error(
-      "GITHUB_TOKEN is not set. Add it to .env.local — a token with `repo:read` scope is enough.",
-    );
-  }
-
-  cachedClient = new Octokit({
-    auth: token,
+/**
+ * Run `fn` with a GitHub client bound to one user's token.
+ *
+ * Every route that touches GitHub wraps its work in this.
+ */
+export function withGitHub<T>(
+  auth: { token: string; login?: string | null; userId?: number | null },
+  fn: () => Promise<T>,
+): Promise<T> {
+  const octokit = new Octokit({
+    auth: auth.token,
     userAgent: "pocketreview",
     request: { timeout: 20000 },
   });
 
-  return cachedClient;
+  return context.run(
+    { octokit, login: auth.login ?? null, userId: auth.userId ?? null },
+    fn,
+  );
 }
 
-/** Reset the cached client. Used by tests. */
+/**
+ * The Octokit client for the current request.
+ *
+ * Falls back to `GITHUB_TOKEN` when no request context is bound, which keeps
+ * the CLI tools (`npm run eval`, `npm run capture`) and single-user local
+ * development working unchanged.
+ */
+export function github(): Octokit {
+  const bound = context.getStore();
+  if (bound) return bound.octokit;
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    throw new Error(
+      "No GitHub credentials for this request. Sign in, or set GITHUB_TOKEN for local use.",
+    );
+  }
+
+  // Not memoised: a single-user process makes few enough clients that the
+  // allocation is irrelevant, and caching it would reintroduce shared state.
+  return new Octokit({
+    auth: token,
+    userAgent: "pocketreview",
+    request: { timeout: 20000 },
+  });
+}
+
+/** The signed-in user's numeric id, for per-user cache keys. */
+export function currentUserId(): number | null {
+  return context.getStore()?.userId ?? null;
+}
+
+/** Reset process-level state. Used by tests. */
 export function resetClient(): void {
-  cachedClient = null;
   cachedViewer = undefined;
 }
 
 let cachedViewer: string | null | undefined;
 
 /**
- * Login of the account the token belongs to.
+ * Login of the account making this request.
  *
  * Used by the priority engine to suppress the viewer's own PRs — you cannot
- * review your own work. Cached for the process lifetime: the answer cannot
- * change without the token changing.
+ * review your own work.
  *
- * Returns `null` rather than throwing when the lookup fails. Own-PR
- * suppression is a convenience, and a queue that 500s because `/user` was
- * unreachable would be a much worse failure than a queue containing one PR
- * the reviewer will skip.
+ * When a request context is bound the login is already known from the session,
+ * so no API call is made. The `/user` lookup and its cache are the fallback
+ * for the single-token CLI path only — memoising it per process would be
+ * wrong once several users share the process.
  */
 export async function getViewerLogin(): Promise<string | null> {
+  const bound = context.getStore();
+  if (bound) return bound.login;
+
   if (cachedViewer !== undefined) return cachedViewer;
 
   try {
@@ -71,6 +127,65 @@ export async function getViewerLogin(): Promise<string | null> {
   }
 
   return cachedViewer;
+}
+
+/**
+ * Whether the last GitHub call hit a rate limit, and when it resets.
+ *
+ * Recorded rather than thrown so the queue can fall back to cache and the UI
+ * can say *why* it is showing stale data. A silent fallback would be worse
+ * than the error: the reviewer would trust an out-of-date queue.
+ */
+export interface RateLimitState {
+  limited: boolean;
+  /** Unix seconds when the limit resets, when known. */
+  resetAt: number | null;
+  remaining: number | null;
+}
+
+let rateLimit: RateLimitState = {
+  limited: false,
+  resetAt: null,
+  remaining: null,
+};
+
+export function rateLimitState(): RateLimitState {
+  return { ...rateLimit };
+}
+
+/** Record rate-limit headers from a response or error. */
+export function noteRateLimit(headers: Record<string, unknown> | undefined) {
+  if (!headers) return;
+
+  const remaining = Number(headers["x-ratelimit-remaining"]);
+  const reset = Number(headers["x-ratelimit-reset"]);
+
+  if (Number.isFinite(remaining)) {
+    rateLimit = {
+      remaining,
+      resetAt: Number.isFinite(reset) ? reset : null,
+      limited: remaining <= 0,
+    };
+  }
+}
+
+/** True when an error is a GitHub rate-limit or abuse-detection response. */
+export function isRateLimitError(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  if (status !== 403 && status !== 429) return false;
+
+  const headers = (
+    error as { response?: { headers?: Record<string, unknown> } }
+  )?.response?.headers;
+  noteRateLimit(headers);
+
+  const remaining = Number(headers?.["x-ratelimit-remaining"]);
+  return status === 429 || remaining === 0;
+}
+
+/** Reset the recorded state. Used by tests. */
+export function resetRateLimit(): void {
+  rateLimit = { limited: false, resetAt: null, remaining: null };
 }
 
 /**
@@ -102,12 +217,32 @@ export async function mapLimit<T, R>(
   return results;
 }
 
-/** Split "owner/name" into its parts. */
+/**
+ * Validate an `owner/name` repository slug.
+ *
+ * Deliberately stricter than "contains one slash". GitHub owners and repository
+ * names are limited to alphanumerics, hyphens, underscores and dots, with
+ * length caps of 39 and 100. Accepting anything looser let newlines, null bytes
+ * and unbounded strings reach the HTTP layer and the cache key — none of which
+ * were exploitable in practice (Octokit encodes path params and cache
+ * filenames are SHA-256 hashed), but validating to the real shape is free and
+ * removes the class of problem rather than one instance of it.
+ */
+export const REPO_SLUG =
+  /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
+
+/** True when `repo` is a well-formed `owner/name` slug. */
+export function isValidRepo(repo: string | null | undefined): repo is string {
+  return typeof repo === "string" && REPO_SLUG.test(repo);
+}
+
+/** Split "owner/name" into its parts. Throws on a malformed slug. */
 export function splitRepo(repo: string): { owner: string; name: string } {
-  const [owner, name] = repo.split("/");
-  if (!owner || !name) {
+  if (!isValidRepo(repo)) {
     throw new Error(`Invalid repository "${repo}" — expected "owner/name".`);
   }
+
+  const [owner, name] = repo.split("/");
   return { owner, name };
 }
 

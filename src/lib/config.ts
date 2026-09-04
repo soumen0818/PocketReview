@@ -77,17 +77,103 @@ interface RawConfig {
   historyWindowDays?: number;
 }
 
-/** Convert configured string patterns into case-insensitive regexes. */
+/** Every category a path rule may claim. */
+const VALID_CATEGORIES: readonly FileCategory[] = [
+  "auth",
+  "payments",
+  "database",
+  "infra",
+  "api",
+  "config",
+  "test",
+  "docs",
+  "ui",
+  "generated",
+  "other",
+] as const;
+
+/**
+ * Clamp a configured number into a sane range, falling back on nonsense.
+ *
+ * `.pocketreview.yml` is hand-written, so a typo (`weight: 10` for `1.0`,
+ * `high: "abc"`) is the expected failure — not an attack. Silently accepting
+ * it is the dangerous outcome: a weight of 99 breaks the 0..1 contract every
+ * dimension assumes and quietly corrupts every score in the queue.
+ */
+function bounded(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(value, min), max);
+}
+
+/** Thresholds must be numeric, in range, and strictly ascending. */
+function sanitiseThresholds(raw: Partial<Thresholds> | undefined): Thresholds {
+  const d = DEFAULT_CONFIG.thresholds;
+
+  const low = bounded(raw?.low, d.low, 0, 100);
+  const medium = bounded(raw?.medium, d.medium, 0, 100);
+  const high = bounded(raw?.high, d.high, 0, 100);
+
+  // Out-of-order bands would make `toLevel` return nonsense — a score could be
+  // "critical" and "low" at once. Fall back wholesale rather than guess which
+  // of the three the author meant.
+  return low < medium && medium < high ? { low, medium, high } : d;
+}
+
+/** Policy values must be the right type; unknown categories are dropped. */
+function sanitisePolicy(raw: Partial<PolicyConfig> | undefined): PolicyConfig {
+  const d = DEFAULT_CONFIG.policy;
+  const asBool = (v: unknown, fallback: boolean) =>
+    typeof v === "boolean" ? v : fallback;
+
+  return {
+    fastTrackMaxRisk: bounded(
+      raw?.fastTrackMaxRisk,
+      d.fastTrackMaxRisk,
+      0,
+      100,
+    ),
+    neverFastTrack: Array.isArray(raw?.neverFastTrack)
+      ? raw.neverFastTrack.filter((c): c is FileCategory =>
+          VALID_CATEGORIES.includes(c as FileCategory),
+        )
+      : d.neverFastTrack,
+    requireCiPassing: asBool(raw?.requireCiPassing, d.requireCiPassing),
+    blockOnDependencyChange: asBool(
+      raw?.blockOnDependencyChange,
+      d.blockOnDependencyChange,
+    ),
+    blockOnTestRemoval: asBool(raw?.blockOnTestRemoval, d.blockOnTestRemoval),
+  };
+}
+
+/** Convert configured entries into validated, case-insensitive path rules. */
 function toRules(raw: RawConfig["paths"]): PathRule[] | null {
   if (!raw || raw.length === 0) return null;
 
   const rules: PathRule[] = [];
   for (const entry of raw) {
+    // An unknown category would classify files into a bucket nothing reads,
+    // silently removing them from criticality scoring.
+    if (!VALID_CATEGORIES.includes(entry?.category as FileCategory)) continue;
+    if (!Array.isArray(entry.patterns) || entry.patterns.length === 0) continue;
+
     try {
+      const patterns = entry.patterns
+        .filter((p): p is string => typeof p === "string")
+        .map((p) => new RegExp(p, "i"));
+
+      if (patterns.length === 0) continue;
+
       rules.push({
         category: entry.category as FileCategory,
-        weight: entry.weight,
-        patterns: entry.patterns.map((p) => new RegExp(p, "i")),
+        // Weights outside 0..1 break the contract every dimension relies on.
+        weight: bounded(entry.weight, 0.4, 0, 1),
+        patterns,
       });
     } catch {
       // Skip an invalid pattern rather than failing the whole config.
@@ -102,9 +188,13 @@ let cached: PocketReviewConfig | null = null;
 /**
  * Load configuration from `.pocketreview.yml`, falling back to defaults.
  *
- * User rules are prepended to the defaults rather than replacing them, so a
- * repo can add its own critical paths without having to restate the built-in
- * generated-file and test detection.
+ * User rules are inserted *after* the built-in generated/test/docs rules and
+ * before the remaining domain rules, so a repo can add its own critical paths
+ * without restating — or accidentally overriding — the generated-file and test
+ * detection that the whole scoring model depends on.
+ *
+ * Every value is validated on the way in: a hand-written YAML typo must not
+ * silently corrupt the scores.
  */
 export async function loadConfig(
   cwd = process.cwd(),
@@ -130,11 +220,23 @@ export async function loadConfig(
             ...DEFAULT_PATH_RULES.slice(3),
           ]
         : DEFAULT_PATH_RULES,
-      thresholds: { ...DEFAULT_CONFIG.thresholds, ...raw.thresholds },
-      policy: { ...DEFAULT_CONFIG.policy, ...raw.policy },
-      llm: { ...DEFAULT_CONFIG.llm, ...raw.llm },
-      historyWindowDays:
-        raw.historyWindowDays ?? DEFAULT_CONFIG.historyWindowDays,
+      thresholds: sanitiseThresholds(raw.thresholds),
+      policy: sanitisePolicy(raw.policy),
+      llm: {
+        enabled: raw.llm?.enabled ?? DEFAULT_CONFIG.llm.enabled,
+        maxDiffChars: bounded(
+          raw.llm?.maxDiffChars,
+          DEFAULT_CONFIG.llm.maxDiffChars,
+          1_000,
+          200_000,
+        ),
+      },
+      historyWindowDays: bounded(
+        raw.historyWindowDays,
+        DEFAULT_CONFIG.historyWindowDays,
+        1,
+        3650,
+      ),
     };
   } catch {
     // No config file, or unreadable — defaults are a complete configuration.

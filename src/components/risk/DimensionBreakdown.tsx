@@ -43,7 +43,7 @@ export default function DimensionBreakdown({
       {/* Header */}
       <header className="flex items-start gap-3 px-4 py-3 bg-white border-b border-gray-100 shrink-0">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
             Score breakdown
           </p>
           <h2 className="text-sm font-semibold text-gray-900 truncate">
@@ -52,7 +52,7 @@ export default function DimensionBreakdown({
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 -mr-1.5 rounded-full hover:bg-gray-100 text-gray-400 shrink-0"
+          className="p-1.5 -mr-1.5 rounded-full hover:bg-gray-100 text-gray-600 shrink-0"
           aria-label="Close breakdown"
         >
           <X size={18} />
@@ -76,9 +76,7 @@ export default function DimensionBreakdown({
               {risk.score}
             </span>
           </div>
-          <p
-            className={`mt-1.5 text-[11px] leading-relaxed ${style.text} opacity-80`}
-          >
+          <p className={`mt-1.5 text-[11px] leading-relaxed ${style.text}`}>
             Computed from {risk.dimensions.length} weighted signals. No language
             model is involved — the same input always produces this same number.
           </p>
@@ -98,15 +96,15 @@ export default function DimensionBreakdown({
                 <div key={dimension.id} className="px-3.5 py-3">
                   <div className="flex items-baseline justify-between gap-2">
                     <span
-                      className={`text-[13px] font-medium ${inactive ? "text-gray-400" : "text-gray-800"}`}
+                      className={`text-[13px] font-medium ${inactive ? "text-gray-500" : "text-gray-900"}`}
                     >
                       {dimension.name}
                     </span>
-                    <span className="font-mono tabular-nums text-[11px] text-gray-400 shrink-0">
+                    <span className="font-mono tabular-nums text-[11px] text-gray-500 shrink-0">
                       <span
                         className={
                           inactive
-                            ? "text-gray-300"
+                            ? "text-gray-500"
                             : "text-gray-900 font-semibold"
                         }
                       >
@@ -131,18 +129,33 @@ export default function DimensionBreakdown({
                       {dimension.reasons.map((reason, index) => (
                         <li
                           key={index}
-                          className="text-[11.5px] leading-snug text-gray-500 flex gap-1.5"
+                          className="text-[11.5px] leading-snug text-gray-600 flex gap-1.5"
                         >
-                          <span className="text-gray-300 select-none">·</span>
+                          <span className="text-gray-500 select-none">·</span>
                           <span>{reason}</span>
                         </li>
                       ))}
                     </ul>
                   )}
 
-                  <p className="mt-1.5 text-[10px] text-gray-300 font-mono truncate">
-                    {dimension.signalsUsed.join(" · ")}
-                  </p>
+                  {/*
+                    Which measurements this dimension read — the audit trail
+                    that makes "where did that number come from?" answerable.
+                    It was `text-gray-300` on white (~1.7:1), which is below
+                    every legibility threshold and effectively invisible on a
+                    phone in daylight. Given as chips on a tinted ground so it
+                    reads as data rather than decoration.
+                  */}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {dimension.signalsUsed.map((signal) => (
+                      <span
+                        key={signal}
+                        className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600"
+                      >
+                        {signal}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               );
             })}
@@ -276,7 +289,7 @@ export default function DimensionBreakdown({
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-400 px-0.5">
+    <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 px-0.5">
       {children}
     </h3>
   );

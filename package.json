@@ -12,21 +12,20 @@
     "test": "tsx --test tests/*.test.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "eval": "tsx --env-file=.env.local eval/run-eval.ts"
+    "eval": "tsx --env-file=.env.local eval/run-eval.ts",
+    "capture": "tsx --env-file=.env.local scripts/capture-fixtures.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
-    "@octokit/graphql": "^9.0.5",
     "@octokit/rest": "^22.0.1",
     "@react-spring/web": "^10.0.3",
-    "framer-motion": "^11.18.2",
+    "@upstash/redis": "^1.38.4",
+    "iron-session": "^9.0.1",
     "lucide-react": "^0.475.0",
     "next": "^16.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-markdown": "^10.1.0",
     "react-tinder-card": "^1.6.4",
-    "remark-gfm": "^4.0.1",
     "yaml": "^2.9.0"
   },
   "devDependencies": {

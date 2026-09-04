@@ -32,7 +32,7 @@ export default function SwipeDeck({
   const cardRef = useRef<{ swipe: (dir: string) => Promise<void> } | null>(
     null,
   );
-  const [triggered, setTriggered] = useState(false);
+  const triggering = useRef(false);
 
   useEffect(() => {
     if (!triggerSwipe || triggered || !cardRef.current) return;

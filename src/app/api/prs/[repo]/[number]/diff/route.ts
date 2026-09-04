@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { getPRDiff } from "@/lib/signals/github";
+import { withAuth } from "@/lib/auth/guard";
+import { toErrorResponse } from "@/lib/api-error";
+import { getPRDiff, isValidRepo } from "@/lib/signals/github";
 import { redactSecrets } from "@/lib/signals/diff";
 import { guardRequest } from "@/lib/api-auth";
 
@@ -30,20 +32,35 @@ export async function GET(
     );
   }
 
-  if (!/^[^/]+\/[^/]+$/.test(repo)) {
+  if (!isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
     );
   }
 
-  try {
-    const diff = await getPRDiff(repo, number);
-    return new NextResponse(redactSecrets(diff), {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return withAuth(async (identity) => {
+    // Demo fixtures deliberately carry no diff text — they are committed to
+    // the repository, and `docs/security.md` promises no source code is
+    // persisted. Saying so is better than a 500 from a GitHub call that
+    // cannot succeed without a token.
+    if (identity.demo) {
+      return NextResponse.json(
+        {
+          error:
+            "Diffs are unavailable in demo mode — the committed fixtures carry measurements only, never source code.",
+        },
+        { status: 409 },
+      );
+    }
+
+    try {
+      const diff = await getPRDiff(repo, number);
+      return new NextResponse(redactSecrets(diff), {
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  });
 }

@@ -27,7 +27,7 @@ export default function CapacityPanel({ capacity }: CapacityPanelProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+        <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
           Queue load
         </h2>
         <span className="text-[10px] text-gray-400">today</span>

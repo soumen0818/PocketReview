@@ -25,8 +25,14 @@ import {
   dangerousChange,
 } from "./helpers/signals.mjs";
 
-const { assessRisk, baselineScore, DIMENSIONS, MODIFIER_RULES, toLevel } =
-  await import("../src/lib/engines/risk-engine.ts");
+const {
+  assessRisk,
+  baselineScore,
+  DIMENSIONS,
+  MODIFIER_RULES,
+  FLOOR_RULES,
+  toLevel,
+} = await import("../src/lib/engines/risk-engine.ts");
 
 const { MODIFIER_CAP } = await import("../src/lib/engines/types.ts");
 const { DEFAULT_CONFIG } = await import("../src/lib/config.ts");
@@ -520,4 +526,120 @@ test("an empty PR does not crash the engine", () => {
   const risk = assessRisk(makeSignals({ files: [], changedFiles: 0 }));
   assert.ok(risk.score >= 0 && risk.score <= 100);
   assert.equal(risk.dimensions.length, 7);
+});
+
+// ---------------------------------------------------------------------------
+// What the card actually shows
+// ---------------------------------------------------------------------------
+
+test("top reasons lead with distinct evidence, not restatements", () => {
+  // The card shows the first four. Taking two reasons per dimension filled
+  // those slots with near-duplicates and pushed the most useful line —
+  // "reverted 3 times recently" — off the card entirely.
+  const signals = makeSignals({
+    files: [
+      makeFile({
+        path: "src/payments/settlement.ts",
+        category: "payments",
+        categoryWeight: 1,
+        additions: 300,
+        deletions: 200,
+        churn: 40,
+      }),
+    ],
+    criticalPaths: ["src/payments/settlement.ts"],
+    productionLinesAdded: 300,
+    hasNoTests: true,
+    testRatio: 0,
+    fileChurn: { "src/payments/settlement.ts": 40 },
+    fileRevertRate: { "src/payments/settlement.ts": 0.3 },
+    priorIncidentFiles: ["src/payments/settlement.ts"],
+    dependenciesAdded: 2,
+  });
+
+  const visible = assessRisk(signals).topReasons.slice(0, 4);
+
+  // No two visible reasons may come from the same dimension's follow-up line.
+  assert.equal(
+    new Set(visible).size,
+    visible.length,
+    "the visible reasons must not repeat",
+  );
+
+  assert.ok(
+    visible.some((r) => /revert/i.test(r)),
+    `revert history must survive into the visible four: ${JSON.stringify(visible)}`,
+  );
+});
+
+test("only the highest floor is named, not every floor that fired", () => {
+  // Two floors firing put two near-identical lines at the top of the card.
+  const signals = makeSignals({
+    files: [
+      makeFile({
+        path: "src/auth/session.ts",
+        category: "auth",
+        categoryWeight: 1,
+        additions: 1,
+        deletions: 1,
+      }),
+    ],
+    criticalPaths: ["src/auth/session.ts"],
+    productionLinesAdded: 1,
+    hasNoTests: true,
+    testRatio: 0,
+  });
+
+  const risk = assessRisk(signals);
+
+  // Both floors fire here, but only the highest may be named — the lower one
+  // ("Touches a critical path") says the same thing less precisely.
+  const allFloorLabels = FLOOR_RULES.map((r) => r.label);
+  const named = risk.topReasons.filter((r) => allFloorLabels.includes(r));
+
+  assert.equal(
+    named.length,
+    1,
+    `only one floor label belongs on the card: ${JSON.stringify(named)}`,
+  );
+  assert.equal(
+    named[0],
+    "Critical-path change with no test coverage",
+    "the highest floor is the one that explains the score",
+  );
+});
+
+test("reassuring lines do not displace risk evidence", () => {
+  const signals = makeSignals({
+    files: [
+      makeFile({
+        path: "src/auth/token.ts",
+        category: "auth",
+        categoryWeight: 1,
+        additions: 40,
+      }),
+    ],
+    criticalPaths: ["src/auth/token.ts"],
+    productionLinesAdded: 40,
+    hasNoTests: true,
+    testRatio: 0,
+  });
+
+  const visible = assessRisk(signals).topReasons.slice(0, 4);
+
+  assert.ok(
+    !visible.some((r) => /^No recent instability/i.test(r)),
+    `reassurance belongs in the breakdown, not the card: ${JSON.stringify(visible)}`,
+  );
+});
+
+test("an unremarkable PR still explains itself", () => {
+  // Filtering reassurance must not leave the "why this score" panel empty.
+  const signals = makeSignals();
+  const risk = assessRisk(signals);
+
+  assert.ok(
+    risk.topReasons.length > 0,
+    "there must always be something to say",
+  );
 });

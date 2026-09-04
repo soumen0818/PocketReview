@@ -66,6 +66,22 @@ export interface FileSignal {
 }
 
 /**
+ * A file signal with its diff text removed.
+ *
+ * Used wherever signals cross a persistence boundary — the disk cache and the
+ * committed demo fixtures. `docs/security.md` promises no source code is
+ * persisted, and a single shared helper is how that stays true: the two call
+ * sites cannot drift, and a future third one has an obvious thing to reach for.
+ */
+export function stripPatch(file: FileSignal): FileSignal {
+  if (file.patch === undefined) return file;
+
+  const copy: FileSignal = { ...file };
+  delete copy.patch;
+  return copy;
+}
+
+/**
  * Heuristic hints that a PR was authored by an agent rather than a person.
  *
  * These are provenance signals, not code analysis — we do not attempt to

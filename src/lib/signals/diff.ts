@@ -202,35 +202,97 @@ export function rankPatchesByConsequence<
   });
 }
 
-/** Redaction patterns for values that must never reach an external service. */
+/**
+ * Redaction patterns for values that must never reach an external service.
+ *
+ * Ordered most-specific first: a vendor-shaped token is labelled precisely,
+ * and the generic assignment rules at the end catch what the specific ones
+ * miss. Overlapping coverage is deliberate — a secret caught twice is fine, a
+ * secret caught zero times is not.
+ */
 const SECRET_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
+  // --- vendor-shaped tokens ---
   { pattern: /\bgh[pousr]_[A-Za-z0-9]{16,}/g, label: "GITHUB_TOKEN" },
+  // Fine-grained PATs: `github_pat_` then base62 and underscores. This is the
+  // format GitHub now issues by default, so omitting it left the most likely
+  // token in a modern repo unredacted.
+  { pattern: /\bgithub_pat_[A-Za-z0-9_]{20,}/g, label: "GITHUB_TOKEN" },
   { pattern: /\bsk-ant-[A-Za-z0-9_-]{16,}/g, label: "ANTHROPIC_KEY" },
+  // Stripe and similar use `sk_live_` / `rk_test_` with an underscore, which
+  // the `sk-` rule below does not match.
+  { pattern: /\b[a-z]{2}_(?:live|test)_[A-Za-z0-9]{16,}/g, label: "API_KEY" },
   { pattern: /\bsk-[A-Za-z0-9]{32,}/g, label: "API_KEY" },
+  { pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}/g, label: "SLACK_TOKEN" },
   { pattern: /\bAKIA[0-9A-Z]{16}\b/g, label: "AWS_KEY" },
+  { pattern: /\bASIA[0-9A-Z]{16}\b/g, label: "AWS_KEY" },
   { pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g, label: "GOOGLE_KEY" },
+  // JWTs: three base64url segments. Frequently a live session or service token.
+  {
+    pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
+    label: "JWT",
+  },
+  // Credentials embedded in a connection string — `scheme://user:secret@host`.
+  {
+    pattern: /\b([a-z][a-z0-9+.-]*:\/\/[^\s:@/]+):[^\s:@/]{3,}@/gi,
+    label: "URL_CREDENTIAL",
+  },
   {
     pattern:
       /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
     label: "PRIVATE_KEY",
   },
+  // --- generic assignments, quoted ---
   {
     pattern:
-      /\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["'][^"']{8,}["']/gi,
+      /\b(?:password|passwd|secret|api[_-]?key|token|auth|credential|private[_-]?key|access[_-]?key)\s*[:=]\s*["'][^"']{6,}["']/gi,
+    label: "CREDENTIAL",
+  },
+  // --- generic assignments, unquoted ---
+  // `.env` files and Dockerfiles rarely quote values, so the rule above missed
+  // the single most common way a secret appears in a diff. Requires a
+  // non-trivial value and stops at whitespace to avoid eating whole lines.
+  {
+    pattern:
+      /\b([A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|API[_-]?KEY|TOKEN|CREDENTIAL|ACCESS[_-]?KEY)[A-Z0-9_]*)\s*=\s*(?!["'\s])(\S{6,})/g,
     label: "CREDENTIAL",
   },
 ];
 
 /**
+ * Patterns whose replacement keeps a leading capture group.
+ *
+ * A URL credential should redact the password while leaving the scheme and
+ * user visible — `postgres://user:[REDACTED]@host` is far more useful to a
+ * reviewer than an opaque blank, and just as safe. Same for a named env
+ * assignment: the variable name is the informative half.
+ */
+const KEEPS_PREFIX = new Set(["URL_CREDENTIAL", "CREDENTIAL"]);
+
+/**
  * Redact credentials from diff text before it leaves the process.
  *
- * Best-effort, not a guarantee — but it removes the common cases, and the
- * whole LLM layer is optional anyway.
+ * Best-effort, not a guarantee — but it removes every format we have seen in
+ * practice, and the LLM layer is optional anyway. Covered by a test that
+ * exercises each vendor format directly, so a regression is visible.
  */
 export function redactSecrets(text: string): string {
   let result = text;
+
   for (const { pattern, label } of SECRET_PATTERNS) {
-    result = result.replace(pattern, `[REDACTED:${label}]`);
+    result = result.replace(pattern, (match, prefix?: string) => {
+      // Keep the informative prefix (variable name, or scheme://user) where one
+      // was captured, and redact only the value after it.
+      if (KEEPS_PREFIX.has(label) && typeof prefix === "string") {
+        // A URL credential match ends at the `@` that separates it from the
+        // host, so that `@` has to be put back or the URL is mangled.
+        if (match.endsWith("@")) return `${prefix}:[REDACTED:${label}]@`;
+
+        const separator = match.slice(prefix.length).match(/^\s*[:=]\s*/)?.[0];
+        return `${prefix}${separator ?? "="}[REDACTED:${label}]`;
+      }
+      return `[REDACTED:${label}]`;
+    });
   }
+
   return result;
 }

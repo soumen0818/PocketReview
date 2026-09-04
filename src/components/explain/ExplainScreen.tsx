@@ -9,9 +9,11 @@ import {
 } from "lucide-react";
 import RiskBadge from "../risk/RiskBadge";
 import VoiceButton from "./VoiceButton";
+import ReviewerCard from "../reviewer/ReviewerCard";
 import { shortRepo } from "@/lib/risk-display";
 import type { TriagedPR } from "@/lib/types";
 import type { Explanation } from "@/lib/llm/explain";
+import type { ReviewerSuggestion } from "@/lib/engines/reviewer-engine";
 
 interface ExplainScreenProps {
   pr: TriagedPR;
@@ -22,6 +24,9 @@ interface ExplainScreenProps {
   errorKind: string | null;
   onRetry: () => void;
   onClose: () => void;
+  /** Suggested reviewer. The card hides itself when confidence is low. */
+  reviewers?: ReviewerSuggestion | null;
+  reviewersLoading?: boolean;
 }
 
 /**
@@ -39,6 +44,8 @@ export default function ExplainScreen({
   errorKind,
   onRetry,
   onClose,
+  reviewers = null,
+  reviewersLoading = false,
 }: ExplainScreenProps) {
   const spoken = explanation
     ? [
@@ -77,6 +84,8 @@ export default function ExplainScreen({
           lowConfidence={pr.risk.lowConfidence}
           size="lg"
         />
+
+        <ReviewerCard suggestion={reviewers} loading={reviewersLoading} />
 
         {loading && (
           <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-6">
@@ -167,7 +176,7 @@ export default function ExplainScreen({
 
             {/* Saying which model wrote this, and that it wrote only words, is
                 the credibility claim restated where it can be checked. */}
-            <p className="pt-1 text-[10px] text-gray-300">
+            <p className="pt-1 text-[10px] text-gray-500">
               Prose by {explanation.model}. The score above was computed in code
               — no model produced it.
             </p>
@@ -189,7 +198,7 @@ function Section({
 }) {
   return (
     <div>
-      <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+      <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
         {icon}
         {title}
       </p>

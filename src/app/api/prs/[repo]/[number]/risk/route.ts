@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth/guard";
+import { toErrorResponse, notFound } from "@/lib/api-error";
+import { isValidRepo } from "@/lib/signals/github";
 import { collectSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
 import { loadConfig } from "@/lib/config";
@@ -33,31 +36,36 @@ export async function GET(
     );
   }
 
-  if (!/^[^/]+\/[^/]+$/.test(repo)) {
+  if (!isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
     );
   }
 
-  try {
-    const config = await loadConfig();
-    const signals = await collectSignals(repo, number, {
-      rules: config.rules,
-    });
-    const risk = assessRisk(signals, { thresholds: config.thresholds });
+  return withAuth(async (identity) => {
+    try {
+      const config = await loadConfig();
+      // Demo mode reads the same fixtures the deck does, so every documented
+      // endpoint works offline rather than only the ones the UI happens to call.
+      const signals = identity.demo
+        ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
+        : await collectSignals(repo, number, { rules: config.rules });
 
-    return NextResponse.json({
-      repo,
-      number,
-      title: signals.title,
-      author: signals.author,
-      url: signals.url,
-      headSha: signals.headSha,
-      risk,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+      if (!signals) throw notFound(`${repo}#${number}`);
+      const risk = assessRisk(signals, { thresholds: config.thresholds });
+
+      return NextResponse.json({
+        repo,
+        number,
+        title: signals.title,
+        author: signals.author,
+        url: signals.url,
+        headSha: signals.headSha,
+        risk,
+      });
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  });
 }

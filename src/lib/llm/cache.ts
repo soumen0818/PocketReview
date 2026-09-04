@@ -38,9 +38,20 @@ export class ExplanationCache<T> {
     private readonly maxEntries: number = MAX_ENTRIES,
   ) {}
 
-  /** Cache key. `headSha` is required — a key without it can serve stale prose. */
-  static key(repo: string, number: number, headSha: string): string {
-    return `${repo}:${number}:${headSha}`;
+  /**
+   * Cache key.
+   *
+   * Both parts are required. `headSha` stops a pushed PR serving stale prose;
+   * `userId` stops one user's explanation of a private PR being served to
+   * another user who cannot see that repository.
+   */
+  static key(
+    userId: number | string,
+    repo: string,
+    number: number,
+    headSha: string,
+  ): string {
+    return `u${userId}:${repo}:${number}:${headSha}`;
   }
 
   get(key: string): T | undefined {

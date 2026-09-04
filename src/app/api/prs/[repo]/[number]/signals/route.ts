@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth/guard";
+import { toErrorResponse, notFound } from "@/lib/api-error";
+import { isValidRepo } from "@/lib/signals/github";
 import { collectSignals } from "@/lib/signals/collect";
 import { signalConfidence } from "@/lib/signals/types";
 import { assessRisk, baselineScore } from "@/lib/engines/risk-engine";
@@ -33,29 +36,34 @@ export async function GET(
     );
   }
 
-  if (!/^[^/]+\/[^/]+$/.test(repo)) {
+  if (!isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
     );
   }
 
-  try {
-    const config = await loadConfig();
-    const signals = await collectSignals(repo, number, {
-      rules: config.rules,
-    });
+  return withAuth(async (identity) => {
+    try {
+      const config = await loadConfig();
+      // Demo mode reads the same fixtures the deck does, so every documented
+      // endpoint works offline rather than only the ones the UI happens to call.
+      const signals = identity.demo
+        ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
+        : await collectSignals(repo, number, { rules: config.rules });
 
-    // The baseline is returned alongside the real score so the difference is
-    // inspectable rather than merely asserted.
-    return NextResponse.json({
-      signals,
-      confidence: signalConfidence(signals.availability),
-      risk: assessRisk(signals, { thresholds: config.thresholds }),
-      baseline: baselineScore(signals),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+      if (!signals) throw notFound(`${repo}#${number}`);
+
+      // The baseline is returned alongside the real score so the difference is
+      // inspectable rather than merely asserted.
+      return NextResponse.json({
+        signals,
+        confidence: signalConfidence(signals.availability),
+        risk: assessRisk(signals, { thresholds: config.thresholds }),
+        baseline: baselineScore(signals),
+      });
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  });
 }

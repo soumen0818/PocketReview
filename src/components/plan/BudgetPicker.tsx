@@ -24,7 +24,7 @@ export default function BudgetPicker({
 }: BudgetPickerProps) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
         How long have you got?
       </p>
 

@@ -29,18 +29,18 @@ export default function QueueSummaryBar({
   return (
     <div className="px-4 pt-2 pb-1 shrink-0">
       <div className="flex items-center gap-3">
-        {/* Proportional band widths — the shape of the queue, not a legend. */}
-        <div className="flex-1 flex h-1.5 rounded-full overflow-hidden bg-gray-100">
-          {present.map((level) => (
-            <div
-              key={level}
-              className={LEVEL_STYLES[level].bar}
-              style={{
-                width: `${(summary.byLevel[level] / summary.total) * 100}%`,
-              }}
-              title={`${summary.byLevel[level]} ${level}`}
-            />
-          ))}
+        {/*
+          Triage progress, not queue composition.
+          The bar used to show the fixed risk distribution, so it never moved
+          while the counter beside it climbed — two things labelled as one, and
+          the static half won. The composition is still readable from the
+          coloured counts below.
+        */}
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-gray-100">
+          <div
+            className="h-full bg-gray-900 transition-[width] duration-300 ease-out"
+            style={{ width: `${(done / summary.total) * 100}%` }}
+          />
         </div>
 
         <span className="text-[11px] text-gray-400 font-medium tabular-nums shrink-0">
