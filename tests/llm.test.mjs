@@ -27,40 +27,48 @@ import { makeFile } from "./helpers/signals.mjs";
 // ---------------------------------------------------------------------------
 
 test("the cache key includes the head SHA", () => {
-  const a = ExplanationCache.key("acme/api", 42, "abc123");
-  const b = ExplanationCache.key("acme/api", 42, "def456");
+  const a = ExplanationCache.key(7, "acme/api", 42, "abc123");
+  const b = ExplanationCache.key(7, "acme/api", 42, "def456");
 
   assert.notEqual(a, b, "a pushed commit must miss the cache");
-  assert.equal(a, "acme/api:42:abc123");
+  assert.equal(a, "u7:acme/api:42:abc123");
+});
+
+test("the cache key includes the user — cross-account isolation", () => {
+  // One user's explanation of a private PR must never reach another account.
+  assert.notEqual(
+    ExplanationCache.key(1, "acme/private", 42, "sha"),
+    ExplanationCache.key(2, "acme/private", 42, "sha"),
+  );
 });
 
 test("a push invalidates the explanation rather than serving stale prose", () => {
   const cache = new ExplanationCache();
 
-  cache.set(ExplanationCache.key("acme/api", 7, "sha-old"), "old prose");
+  cache.set(ExplanationCache.key(1, "acme/api", 7, "sha-old"), "old prose");
 
   assert.equal(
-    cache.get(ExplanationCache.key("acme/api", 7, "sha-new")),
+    cache.get(ExplanationCache.key(1, "acme/api", 7, "sha-new")),
     undefined,
     "the new head must not read the old explanation",
   );
   assert.equal(
-    cache.get(ExplanationCache.key("acme/api", 7, "sha-old")),
+    cache.get(ExplanationCache.key(1, "acme/api", 7, "sha-old")),
     "old prose",
   );
 });
 
 test("same repo and number in different repos stay distinct", () => {
   const cache = new ExplanationCache();
-  cache.set(ExplanationCache.key("acme/api", 7, "sha"), "api prose");
-  cache.set(ExplanationCache.key("acme/web", 7, "sha"), "web prose");
+  cache.set(ExplanationCache.key(1, "acme/api", 7, "sha"), "api prose");
+  cache.set(ExplanationCache.key(1, "acme/web", 7, "sha"), "web prose");
 
   assert.equal(
-    cache.get(ExplanationCache.key("acme/api", 7, "sha")),
+    cache.get(ExplanationCache.key(1, "acme/api", 7, "sha")),
     "api prose",
   );
   assert.equal(
-    cache.get(ExplanationCache.key("acme/web", 7, "sha")),
+    cache.get(ExplanationCache.key(1, "acme/web", 7, "sha")),
     "web prose",
   );
 });

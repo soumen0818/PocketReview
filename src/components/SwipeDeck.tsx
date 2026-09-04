@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TinderCard from "react-tinder-card";
 import PRCard from "./PRCard";
 import type { TriagedPR } from "@/lib/types";
@@ -32,15 +32,36 @@ export default function SwipeDeck({
   const cardRef = useRef<{ swipe: (dir: string) => Promise<void> } | null>(
     null,
   );
-  const [triggered, setTriggered] = useState(false);
+  const triggering = useRef(false);
 
-  if (triggerSwipe && !triggered && cardRef.current) {
-    setTriggered(true);
-    cardRef.current.swipe(triggerSwipe.direction).then(() => {
-      setTriggered(false);
-      onTriggerConsumed?.();
-    });
-  }
+  /**
+   * Button-driven swipes.
+   *
+   * This has to be an effect, not a render-time branch. Calling
+   * `cardRef.current.swipe()` during render fires `onSwipe` synchronously,
+   * which calls back into the parent's `addTriage` — a `setState` on another
+   * component mid-render, which React reports as
+   * *"Cannot update a component while rendering a different component"*.
+   *
+   * A ref rather than state guards re-entry: state would schedule another
+   * render, and the guard needs to take effect immediately.
+   */
+  useEffect(() => {
+    if (!triggerSwipe || triggering.current || !cardRef.current) return;
+
+    triggering.current = true;
+
+    cardRef.current
+      .swipe(triggerSwipe.direction)
+      .catch(() => {
+        // The card may already have left the deck — not an error worth
+        // surfacing, but the trigger still has to be released.
+      })
+      .finally(() => {
+        triggering.current = false;
+        onTriggerConsumed?.();
+      });
+  }, [triggerSwipe, onTriggerConsumed]);
 
   function handleSwipe(direction: string, pr: TriagedPR) {
     if (direction === "right") onSwipeRight(pr);

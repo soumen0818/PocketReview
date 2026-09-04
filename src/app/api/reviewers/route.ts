@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth/guard";
 import { toErrorResponse, notFound } from "@/lib/api-error";
 import { isValidRepo } from "@/lib/signals/github";
 import { buildExpertiseMatrix } from "@/lib/signals/history";
 import { collectSignals } from "@/lib/signals/collect";
 import { suggestReviewers } from "@/lib/engines/reviewer-engine";
-import { loadConfig, isDemoMode } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
 import type { ExpertiseMatrix } from "@/lib/signals/history";
 
@@ -76,46 +77,48 @@ export async function GET(request: Request) {
     );
   }
 
-  try {
-    const config = await loadConfig();
+  return withAuth(async (identity) => {
+    try {
+      const config = await loadConfig();
 
-    // Demo mode has no git history to scan, so the matrix is empty and the
-    // engine correctly reports low confidence rather than inventing names.
-    const matrix = isDemoMode()
-      ? { byAuthor: {}, lastTouch: {}, contributors: [], totalCommits: 0 }
-      : await getMatrix(repo);
+      // Demo mode has no git history to scan, so the matrix is empty and the
+      // engine correctly reports low confidence rather than inventing names.
+      const matrix = identity.demo
+        ? { byAuthor: {}, lastTouch: {}, contributors: [], totalCommits: 0 }
+        : await getMatrix(repo);
 
-    if (!numberParam) {
-      return NextResponse.json({
-        repo,
-        contributors: matrix.contributors.length,
-        totalCommits: matrix.totalCommits,
-        directories: [
-          ...new Set(
-            Object.values(matrix.byAuthor).flatMap((d) => Object.keys(d)),
-          ),
-        ].length,
-      });
+      if (!numberParam) {
+        return NextResponse.json({
+          repo,
+          contributors: matrix.contributors.length,
+          totalCommits: matrix.totalCommits,
+          directories: [
+            ...new Set(
+              Object.values(matrix.byAuthor).flatMap((d) => Object.keys(d)),
+            ),
+          ].length,
+        });
+      }
+
+      const number = Number.parseInt(numberParam, 10);
+      if (!Number.isInteger(number) || number <= 0) {
+        return NextResponse.json(
+          { error: `Invalid PR number "${numberParam}".` },
+          { status: 400 },
+        );
+      }
+
+      const signals = identity.demo
+        ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
+        : await collectSignals(repo, number, { rules: config.rules });
+
+      if (!signals) throw notFound(`${repo}#${number}`);
+
+      const suggestion = suggestReviewers(signals, matrix);
+
+      return NextResponse.json({ repo, number, ...suggestion });
+    } catch (error) {
+      return toErrorResponse(error);
     }
-
-    const number = Number.parseInt(numberParam, 10);
-    if (!Number.isInteger(number) || number <= 0) {
-      return NextResponse.json(
-        { error: `Invalid PR number "${numberParam}".` },
-        { status: 400 },
-      );
-    }
-
-    const signals = isDemoMode()
-      ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
-      : await collectSignals(repo, number, { rules: config.rules });
-
-    if (!signals) throw notFound(`${repo}#${number}`);
-
-    const suggestion = suggestReviewers(signals, matrix);
-
-    return NextResponse.json({ repo, number, ...suggestion });
-  } catch (error) {
-    return toErrorResponse(error);
-  }
+  });
 }

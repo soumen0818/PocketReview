@@ -41,7 +41,7 @@ export default function ReviewerCard({
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5">
-      <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+      <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
         <UserCheck size={11} />
         Suggested reviewer
       </p>

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth/guard";
 import { toErrorResponse, readJsonBody } from "@/lib/api-error";
 import {
   listReviewRequested,
   listRepoPRs,
-  getViewerLogin,
   isValidRepo,
 } from "@/lib/signals/github";
 import { collectQueueSignals } from "@/lib/signals/collect";
@@ -17,7 +17,7 @@ import {
   MAX_BUDGET_MINUTES,
   type PlanCandidate,
 } from "@/lib/engines/review-plan";
-import { loadConfig, isDemoMode } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
 import type { PRSignals } from "@/lib/signals/types";
 
@@ -35,81 +35,83 @@ import type { PRSignals } from "@/lib/signals/types";
  */
 export async function POST(request: Request) {
   let body: unknown;
-  try {
-    body = await readJsonBody(request);
-  } catch (error) {
-    return toErrorResponse(error);
-  }
-
-  const {
-    repo,
-    budgetMinutes,
-    limit: rawLimit,
-    includeDrafts = false,
-  } = (body ?? {}) as {
-    repo?: string;
-    budgetMinutes?: number;
-    limit?: number;
-    includeDrafts?: boolean;
-  };
-
-  if (typeof budgetMinutes !== "number" || !Number.isFinite(budgetMinutes)) {
-    return NextResponse.json(
-      { error: "`budgetMinutes` is required and must be a number." },
-      { status: 400 },
-    );
-  }
-
-  if (repo !== undefined && !isValidRepo(repo)) {
-    return NextResponse.json(
-      { error: `Invalid repository "${repo}" — expected "owner/name".` },
-      { status: 400 },
-    );
-  }
-
-  const limit = Number.isFinite(Number(rawLimit))
-    ? Math.min(Math.max(Number(rawLimit) || 50, 1), 100)
-    : 50;
-
-  try {
-    const config = await loadConfig();
-
-    const signals: PRSignals[] = isDemoMode()
-      ? DEMO_SIGNALS
-      : await collectLive(repo ?? null, limit, config.rules);
-
-    const viewer = isDemoMode() ? null : await getViewerLogin();
-
-    // Only PRs that belong in the deck can belong in a plan: a draft or an
-    // already-approved PR is not work this reviewer should schedule.
-    const candidates: PlanCandidate[] = [];
-    for (const signal of signals) {
-      const risk = assessRisk(signal, { thresholds: config.thresholds });
-      const priority = priorityScore(signal, risk, {
-        viewer: viewer ?? undefined,
-        includeDrafts,
-      });
-
-      if (priority.suppressed) continue;
-
-      candidates.push({
-        repo: signal.repo,
-        number: signal.number,
-        title: signal.title,
-        priority: priority.score,
-        risk: risk.score,
-        riskLevel: risk.level,
-        minutes: estimateEffort(signal).minutes,
-      });
+  return withAuth(async (identity) => {
+    try {
+      body = await readJsonBody(request);
+    } catch (error) {
+      return toErrorResponse(error);
     }
 
-    const plan = buildReviewPlan(candidates, budgetMinutes);
-    const capacity = capacityReport(candidates, plan.budgetMinutes);
+    const {
+      repo,
+      budgetMinutes,
+      limit: rawLimit,
+      includeDrafts = false,
+    } = (body ?? {}) as {
+      repo?: string;
+      budgetMinutes?: number;
+      limit?: number;
+      includeDrafts?: boolean;
+    };
 
-    return NextResponse.json({ plan, capacity });
-  } catch (error) {
-    return toErrorResponse(error);
-  }
+    if (typeof budgetMinutes !== "number" || !Number.isFinite(budgetMinutes)) {
+      return NextResponse.json(
+        { error: "`budgetMinutes` is required and must be a number." },
+        { status: 400 },
+      );
+    }
+
+    if (repo !== undefined && !isValidRepo(repo)) {
+      return NextResponse.json(
+        { error: `Invalid repository "${repo}" — expected "owner/name".` },
+        { status: 400 },
+      );
+    }
+
+    const limit = Number.isFinite(Number(rawLimit))
+      ? Math.min(Math.max(Number(rawLimit) || 50, 1), 100)
+      : 50;
+
+    try {
+      const config = await loadConfig();
+
+      const signals: PRSignals[] = identity.demo
+        ? DEMO_SIGNALS
+        : await collectLive(repo ?? null, limit, config.rules);
+
+      const viewer = identity.login;
+
+      // Only PRs that belong in the deck can belong in a plan: a draft or an
+      // already-approved PR is not work this reviewer should schedule.
+      const candidates: PlanCandidate[] = [];
+      for (const signal of signals) {
+        const risk = assessRisk(signal, { thresholds: config.thresholds });
+        const priority = priorityScore(signal, risk, {
+          viewer: viewer ?? undefined,
+          includeDrafts,
+        });
+
+        if (priority.suppressed) continue;
+
+        candidates.push({
+          repo: signal.repo,
+          number: signal.number,
+          title: signal.title,
+          priority: priority.score,
+          risk: risk.score,
+          riskLevel: risk.level,
+          minutes: estimateEffort(signal).minutes,
+        });
+      }
+
+      const plan = buildReviewPlan(candidates, budgetMinutes);
+      const capacity = capacityReport(candidates, plan.budgetMinutes);
+
+      return NextResponse.json({ plan, capacity });
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  });
 }
 
 /**

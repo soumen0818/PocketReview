@@ -113,7 +113,7 @@ export default function PRCard({ pr, onShowBreakdown, style }: PRCardProps) {
 
       {/* Why — the part that earns the score */}
       <div className="px-4 py-3 flex-1 min-h-0 overflow-y-auto">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
           Why this score
         </p>
         <RiskReasons reasons={risk.topReasons} max={4} />
@@ -127,10 +127,10 @@ export default function PRCard({ pr, onShowBreakdown, style }: PRCardProps) {
           className="shrink-0 flex items-center justify-between w-full px-4 py-2.5 border-t border-gray-100 text-[12px] text-gray-500 hover:bg-gray-50 active:bg-gray-100 transition-colors"
         >
           <span>
-            See all {risk.dimensions.length} signals
-            <span className="text-gray-300"> · vs baseline {pr.baseline}</span>
+            See the full breakdown
+            <span className="text-gray-500"> · vs baseline {pr.baseline}</span>
           </span>
-          <ChevronRight size={14} className="text-gray-300" />
+          <ChevronRight size={14} className="text-gray-400" />
         </button>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Header from "@/components/Header";
 import SwipeDeck from "@/components/SwipeDeck";
 import SwipeActions from "@/components/SwipeActions";
@@ -10,6 +10,7 @@ import QueueSummaryBar from "@/components/QueueSummaryBar";
 import StaleBanner from "@/components/StaleBanner";
 import DimensionBreakdown from "@/components/risk/DimensionBreakdown";
 import VetoCard from "@/components/risk/VetoCard";
+import { useAuth } from "@/hooks/useAuth";
 import { useSwipeHistory } from "@/hooks/useSwipeHistory";
 import { usePRs } from "@/hooks/usePRs";
 import { useExplanation } from "@/hooks/useExplanation";
@@ -20,9 +21,18 @@ import type { PolicyVerdict } from "@/lib/policy/gate";
 type TriggerSwipe = { direction: "left" | "right" } | null;
 
 export default function Home() {
-  const { hasReviewed, addTriage } = useSwipeHistory();
-  const { prs, summary, stale, loading, error, refetch, removePR } =
-    usePRs(hasReviewed);
+  const auth = useAuth();
+  const {
+    hasReviewed,
+    addTriage,
+    history,
+    clearHistory,
+    loaded: historyLoaded,
+  } = useSwipeHistory();
+  const { prs, summary, stale, loading, error, refetch, removePR } = usePRs(
+    hasReviewed,
+    historyLoaded,
+  );
   const {
     explanation,
     loading: explaining,
@@ -65,7 +75,7 @@ export default function Home() {
         pr.risk.score,
       );
       removePR(pr.repository.nameWithOwner, pr.number);
-      showToast(`#${pr.number} → needs review`);
+      showToast(`#${pr.number} saved to Needs review`);
     },
     [addTriage, removePR],
   );
@@ -104,7 +114,7 @@ export default function Home() {
 
       addTriage(repo, pr.number, "fast-track", pr.risk.score);
       removePR(repo, pr.number);
-      showToast(`#${pr.number} → fast-track`);
+      showToast(`#${pr.number} saved to Fast-track`);
     },
     [addTriage, removePR],
   );
@@ -127,6 +137,24 @@ export default function Home() {
     if (!topPR) return;
     setTriggerSwipe({ direction: "right" });
   }, [topPR]);
+
+  // `ready` is the server's answer to "can this deployment serve data?" —
+  // true for demo and local-token modes without anyone signing in. Inferring
+  // it from `signedIn` here was the bug: a working local token still bounced
+  // to a sign-in page that had nothing to sign in to.
+  useEffect(() => {
+    if (!auth.loading && !auth.ready) {
+      window.location.href = "/signin";
+    }
+  }, [auth.loading, auth.ready]);
+
+  if (auth.loading || !auth.ready) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-gray-700" />
+      </div>
+    );
+  }
 
   // The refusal. Rendered before anything else: a vetoed swipe must not be
   // able to fall through to the deck.
@@ -186,7 +214,15 @@ export default function Home() {
 
   return (
     <>
-      <Header onRefresh={refetch} loading={loading} />
+      <Header
+        onRefresh={refetch}
+        loading={loading}
+        login={auth.login}
+        avatarUrl={auth.avatarUrl}
+        demoMode={auth.demoMode}
+        mode={auth.mode}
+        onSignOut={auth.signOut}
+      />
 
       <main className="flex flex-col flex-1 pb-4 min-h-0 overflow-hidden">
         {loading && prs.length === 0 ? (
@@ -206,7 +242,15 @@ export default function Home() {
             </button>
           </div>
         ) : prs.length === 0 ? (
-          <EmptyState onRefresh={refetch} loading={loading} />
+          <EmptyState
+            onRefresh={refetch}
+            loading={loading}
+            history={history}
+            onClearHistory={() => {
+              clearHistory();
+              refetch();
+            }}
+          />
         ) : (
           <>
             <StaleBanner stale={stale} />

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth/guard";
 import { toErrorResponse } from "@/lib/api-error";
 import {
   listReviewRequested,
   listRepoPRs,
-  getViewerLogin,
   isRateLimitError,
   rateLimitState,
   isValidRepo,
@@ -12,12 +12,13 @@ import {
   read as cacheRead,
   write as cacheWrite,
   ageOf,
+  queueKey,
 } from "@/lib/cache/store";
 import { collectQueueSignals } from "@/lib/signals/collect";
 import { assessRisk, baselineScore } from "@/lib/engines/risk-engine";
 import { priorityScore, rankQueue } from "@/lib/engines/priority-engine";
 import { estimateEffort, formatDuration } from "@/lib/engines/effort-estimator";
-import { loadConfig, isDemoMode } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
 import { stripPatch } from "@/lib/signals/types";
 import type { PRSignals } from "@/lib/signals/types";
@@ -61,111 +62,113 @@ export async function GET(request: Request) {
     );
   }
 
-  try {
-    const config = await loadConfig();
+  return withAuth(async (identity) => {
+    try {
+      const config = await loadConfig();
 
-    // Demo mode swaps the data source, never the scoring — fixtures run
-    // through the same engine, so what you see offline is what the engine
-    // genuinely produces.
-    // The queue cache key covers the whole request shape, so a different repo
-    // or limit does not read another query's answer.
-    const queueKey = `queue:${repo ?? "@me"}:${limit}`;
+      // Demo mode swaps the data source, never the scoring — fixtures run
+      // through the same engine, so what you see offline is what the engine
+      // genuinely produces.
+      // Namespaced per user: two people asking for the same repo must not
+      // share a cache entry, because their GitHub permissions differ.
+      const cacheKeyForQueue = queueKey(identity.userId, repo, limit);
 
-    let signals: PRSignals[];
-    let stale: { ageMs: number; reason: string } | null = null;
+      let signals: PRSignals[];
+      let stale: { ageMs: number; reason: string } | null = null;
 
-    if (isDemoMode()) {
-      signals = DEMO_SIGNALS;
-    } else {
-      try {
-        signals = await collectLiveSignals(repo, limit, config.rules);
-        // Cache the measurements — never the diffs. `cacheWrite` enforces that
-        // structurally and throws if a patch ever reaches it.
-        await cacheWrite(
-          queueKey,
-          signals.map((s) => ({
-            ...s,
-            files: s.files.map((file) => stripPatch(file)),
-          })),
-        ).catch(() => {});
-      } catch (error) {
-        // Rate limited, or GitHub unreachable. Serve the last good queue rather
-        // than an error page — but say plainly that it is stale.
-        const cached = await cacheRead<PRSignals[]>(queueKey);
-        if (!cached) throw error;
+      if (identity.demo) {
+        signals = DEMO_SIGNALS;
+      } else {
+        try {
+          signals = await collectLiveSignals(repo, limit, config.rules);
+          // Cache the measurements — never the diffs. `cacheWrite` enforces that
+          // structurally and throws if a patch ever reaches it.
+          await cacheWrite(
+            cacheKeyForQueue,
+            signals.map((s) => ({
+              ...s,
+              files: s.files.map((file) => stripPatch(file)),
+            })),
+          ).catch(() => {});
+        } catch (error) {
+          // Rate limited, or GitHub unreachable. Serve the last good queue rather
+          // than an error page — but say plainly that it is stale.
+          const cached = await cacheRead<PRSignals[]>(cacheKeyForQueue);
+          if (!cached) throw error;
 
-        const ageMs = (await ageOf(queueKey)) ?? 0;
-        const limited = isRateLimitError(error);
-        stale = {
-          ageMs,
-          reason: limited
-            ? "GitHub rate limit reached"
-            : "GitHub is unreachable",
-        };
-        signals = cached;
+          const ageMs = (await ageOf(cacheKeyForQueue)) ?? 0;
+          const limited = isRateLimitError(error);
+          stale = {
+            ageMs,
+            reason: limited
+              ? "GitHub rate limit reached"
+              : "GitHub is unreachable",
+          };
+          signals = cached;
+        }
       }
-    }
 
-    if (signals.length === 0) {
-      return NextResponse.json({ prs: [], summary: emptySummary() });
-    }
+      if (signals.length === 0) {
+        return NextResponse.json({ prs: [], summary: emptySummary() });
+      }
 
-    // Who is triaging, so their own PRs drop out of the deck. Never fatal:
-    // `getViewerLogin` returns null rather than throwing, and demo mode has
-    // no token to ask about.
-    const viewer = isDemoMode() ? null : await getViewerLogin();
+      // Who is triaging, so their own PRs drop out of the deck. Never fatal:
+      // `getViewerLogin` returns null rather than throwing, and demo mode has
+      // no token to ask about.
+      const viewer = identity.login;
 
-    // How many PRs each one blocks, resolved across the queue as a whole.
-    const blockedCounts = countBlocked(signals);
+      // How many PRs each one blocks, resolved across the queue as a whole.
+      const blockedCounts = countBlocked(signals);
 
-    const scored = signals.map((signal) => {
-      const risk = assessRisk(signal, { thresholds: config.thresholds });
-      return {
-        signal,
-        number: signal.number,
-        risk,
-        priority: priorityScore(signal, risk, {
-          viewer: viewer ?? undefined,
-          blockedCount: blockedCounts.get(signal.number) ?? 0,
-          includeDrafts,
+      const scored = signals.map((signal) => {
+        const risk = assessRisk(signal, { thresholds: config.thresholds });
+        return {
+          signal,
+          number: signal.number,
+          risk,
+          priority: priorityScore(signal, risk, {
+            viewer: viewer ?? undefined,
+            blockedCount: blockedCounts.get(signal.number) ?? 0,
+            includeDrafts,
+          }),
+          effort: estimateEffort(signal),
+        };
+      });
+
+      const visible = rankQueue(scored.filter((s) => !s.priority.suppressed));
+
+      const prs: TriagedPR[] = visible.map(
+        ({ signal, risk, priority, effort }) => ({
+          number: signal.number,
+          title: signal.title,
+          body: signal.body,
+          author: { login: signal.author },
+          repository: { nameWithOwner: signal.repo },
+          createdAt: signal.createdAt,
+          additions: signal.additions,
+          deletions: signal.deletions,
+          changedFiles: signal.changedFiles,
+          url: signal.url,
+          headSha: signal.headSha,
+          risk,
+          priority,
+          effort,
+          baseline: baselineScore(signal),
+          signals: includeSignals ? signal : undefined,
         }),
-        effort: estimateEffort(signal),
-      };
-    });
+      );
 
-    const visible = rankQueue(scored.filter((s) => !s.priority.suppressed));
-
-    const prs: TriagedPR[] = visible.map(
-      ({ signal, risk, priority, effort }) => ({
-        number: signal.number,
-        title: signal.title,
-        body: signal.body,
-        author: { login: signal.author },
-        repository: { nameWithOwner: signal.repo },
-        createdAt: signal.createdAt,
-        additions: signal.additions,
-        deletions: signal.deletions,
-        changedFiles: signal.changedFiles,
-        url: signal.url,
-        headSha: signal.headSha,
-        risk,
-        priority,
-        effort,
-        baseline: baselineScore(signal),
-        signals: includeSignals ? signal : undefined,
-      }),
-    );
-
-    return NextResponse.json({
-      prs,
-      summary: summarise(prs, scored.length - prs.length),
-      // Present only when the queue came from cache. The UI must show a banner.
-      stale,
-      rateLimit: isDemoMode() ? null : rateLimitState(),
-    });
-  } catch (error) {
-    return toErrorResponse(error);
-  }
+      return NextResponse.json({
+        prs,
+        summary: summarise(prs, scored.length - prs.length),
+        // Present only when the queue came from cache. The UI must show a banner.
+        stale,
+        rateLimit: identity.demo ? null : rateLimitState(),
+      });
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  });
 }
 
 /** Fetch and measure the live queue from GitHub. */

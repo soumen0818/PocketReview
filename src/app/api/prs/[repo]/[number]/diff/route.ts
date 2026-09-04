@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth/guard";
 import { toErrorResponse } from "@/lib/api-error";
 import { getPRDiff, isValidRepo } from "@/lib/signals/github";
 import { redactSecrets } from "@/lib/signals/diff";
-import { isDemoMode } from "@/lib/config";
 
 /**
  * GET /api/prs/:repo/:number/diff
@@ -35,26 +35,28 @@ export async function GET(
     );
   }
 
-  // Demo fixtures deliberately carry no diff text — they are committed to the
-  // repository, and `docs/security.md` promises no source code is persisted.
-  // Saying so is better than a 500 from a GitHub call that cannot succeed
-  // without a token.
-  if (isDemoMode()) {
-    return NextResponse.json(
-      {
-        error:
-          "Diffs are unavailable in demo mode — the committed fixtures carry measurements only, never source code.",
-      },
-      { status: 409 },
-    );
-  }
+  return withAuth(async (identity) => {
+    // Demo fixtures deliberately carry no diff text — they are committed to
+    // the repository, and `docs/security.md` promises no source code is
+    // persisted. Saying so is better than a 500 from a GitHub call that
+    // cannot succeed without a token.
+    if (identity.demo) {
+      return NextResponse.json(
+        {
+          error:
+            "Diffs are unavailable in demo mode — the committed fixtures carry measurements only, never source code.",
+        },
+        { status: 409 },
+      );
+    }
 
-  try {
-    const diff = await getPRDiff(repo, number);
-    return new NextResponse(redactSecrets(diff), {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
-  } catch (error) {
-    return toErrorResponse(error);
-  }
+    try {
+      const diff = await getPRDiff(repo, number);
+      return new NextResponse(redactSecrets(diff), {
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  });
 }

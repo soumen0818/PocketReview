@@ -28,6 +28,14 @@ const EMPTY_SUMMARY: QueueSummary = {
  */
 export function usePRs(
   hasReviewed: (repo: string, prNumber: number) => boolean,
+  /**
+   * False until stored triage decisions have been read.
+   *
+   * Fetching before then would filter against an empty history and briefly
+   * resurrect every PR the user already triaged — the flash of stale data is
+   * worse than waiting a tick for localStorage.
+   */
+  historyLoaded = true,
 ) {
   const [prs, setPRs] = useState<TriagedPR[]>([]);
   const [summary, setSummary] = useState<QueueSummary>(EMPTY_SUMMARY);
@@ -66,8 +74,8 @@ export function usePRs(
   }, [hasReviewed]);
 
   useEffect(() => {
-    fetchPRs();
-  }, [fetchPRs]);
+    if (historyLoaded) fetchPRs();
+  }, [fetchPRs, historyLoaded]);
 
   const removePR = useCallback((repo: string, prNumber: number) => {
     setPRs((prev) =>

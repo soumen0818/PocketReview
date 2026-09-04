@@ -35,15 +35,17 @@ Everything else in this folder is reference material for what is _shipped today_
 
 ## Reference
 
-| Document                            | What it covers                                                                     |
-| ----------------------------------- | ---------------------------------------------------------------------------------- |
-| [Risk Scoring](./risk-scoring.md)   | The 7 dimensions with real formulas, modifiers, floors, confidence, the demo table |
-| [API Reference](./api-reference.md) | Endpoints, TypeScript interfaces, internal signatures                              |
-| [Configuration](./configuration.md) | Env vars, `.pocketreview.yml`, path rules and precedence, thresholds               |
-| [UI Components](./ui-components.md) | Component props, gestures, colour system, hooks                                    |
-| [Security](./security.md)           | Token scopes, LLM opt-out, persistence, the policy gate                            |
-| [Testing](./testing.md)             | Test suites, the claims they defend, fixtures, the eval harness                    |
-| [Contributing](./contributing.md)   | Setup, the four invariants, adding dimensions and signals                          |
+| Document                                          | What it covers                                                                     |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **[Using PocketReview](./using-pocketreview.md)** | **What the screen means and what each action does** — start here as a user         |
+| [Deployment](./deployment.md)                     | GitHub OAuth, Vercel, the three run modes                                          |
+| [Risk Scoring](./risk-scoring.md)                 | The 7 dimensions with real formulas, modifiers, floors, confidence, the demo table |
+| [API Reference](./api-reference.md)               | Endpoints, TypeScript interfaces, internal signatures                              |
+| [Configuration](./configuration.md)               | Env vars, `.pocketreview.yml`, path rules and precedence, thresholds               |
+| [UI Components](./ui-components.md)               | Component props, gestures, colour system, hooks                                    |
+| [Security](./security.md)                         | Token scopes, LLM opt-out, persistence, the policy gate                            |
+| [Testing](./testing.md)                           | Test suites, the claims they defend, fixtures, the eval harness                    |
+| [Contributing](./contributing.md)                 | Setup, the four invariants, adding dimensions and signals                          |
 
 **Status convention.** Reference docs mark every section ✅ **Shipped** (verified against source) or 🕐 **Planned — Phase N** (designed in the architecture, not yet built). The architecture document describes the complete target system; these describe the code as it exists.
 

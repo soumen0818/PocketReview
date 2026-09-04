@@ -30,13 +30,13 @@ export default function RiskReasons({
           key={index}
           className="flex gap-2 text-[13px] leading-snug text-gray-600"
         >
-          <span className="text-gray-300 select-none shrink-0 mt-px">▸</span>
+          <span className="text-gray-500 select-none shrink-0 mt-px">▸</span>
           <span>{reason}</span>
         </li>
       ))}
       {hidden > 0 && (
         <li className="pl-4 text-[11px] text-gray-400">
-          +{hidden} more signal{hidden === 1 ? "" : "s"}
+          +{hidden} more reason{hidden === 1 ? "" : "s"}
         </li>
       )}
     </ul>

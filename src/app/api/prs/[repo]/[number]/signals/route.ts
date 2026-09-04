@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth/guard";
 import { toErrorResponse, notFound } from "@/lib/api-error";
 import { isValidRepo } from "@/lib/signals/github";
 import { collectSignals } from "@/lib/signals/collect";
 import { signalConfidence } from "@/lib/signals/types";
 import { assessRisk, baselineScore } from "@/lib/engines/risk-engine";
-import { loadConfig, isDemoMode } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
 
 /**
@@ -39,25 +40,27 @@ export async function GET(
     );
   }
 
-  try {
-    const config = await loadConfig();
-    // Demo mode reads the same fixtures the deck does, so every documented
-    // endpoint works offline rather than only the ones the UI happens to call.
-    const signals = isDemoMode()
-      ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
-      : await collectSignals(repo, number, { rules: config.rules });
+  return withAuth(async (identity) => {
+    try {
+      const config = await loadConfig();
+      // Demo mode reads the same fixtures the deck does, so every documented
+      // endpoint works offline rather than only the ones the UI happens to call.
+      const signals = identity.demo
+        ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
+        : await collectSignals(repo, number, { rules: config.rules });
 
-    if (!signals) throw notFound(`${repo}#${number}`);
+      if (!signals) throw notFound(`${repo}#${number}`);
 
-    // The baseline is returned alongside the real score so the difference is
-    // inspectable rather than merely asserted.
-    return NextResponse.json({
-      signals,
-      confidence: signalConfidence(signals.availability),
-      risk: assessRisk(signals, { thresholds: config.thresholds }),
-      baseline: baselineScore(signals),
-    });
-  } catch (error) {
-    return toErrorResponse(error);
-  }
+      // The baseline is returned alongside the real score so the difference is
+      // inspectable rather than merely asserted.
+      return NextResponse.json({
+        signals,
+        confidence: signalConfidence(signals.availability),
+        risk: assessRisk(signals, { thresholds: config.thresholds }),
+        baseline: baselineScore(signals),
+      });
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  });
 }

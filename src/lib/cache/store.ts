@@ -1,8 +1,11 @@
 /**
- * Two-tier cache.
+ * Three-tier cache.
  *
- *   L1  in-memory   — per process, fast, lost on restart
- *   L2  on disk     — `.pocketreview/cache/`, survives restart
+ *   L1  in-memory   — per process/instance, fast, lost on cold start
+ *   L2  Upstash Redis — shared across instances, optional
+ *   L3  on disk     — local development only; serverless filesystems are
+ *                     read-only and instances are ephemeral, so this tier is
+ *                     skipped there rather than failing on every write
  *
  * **Keyed on `headSha`**, which is the crucial choice: a PR that has not been
  * pushed to is never recomputed, so a repeated demo run is instant and
@@ -17,8 +20,37 @@
 import { readFile, writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
 import { join } from "path";
 import { createHash } from "crypto";
+import { Redis } from "@upstash/redis";
 
 const CACHE_DIR = join(process.cwd(), ".pocketreview", "cache");
+
+/**
+ * Shared cache, when one is configured.
+ *
+ * Optional on purpose. Without Redis the app still works — a cold start simply
+ * refetches from GitHub — so the project deploys with zero infrastructure and
+ * gains a shared cache later by setting two environment variables. Requiring a
+ * database to run a demo is a worse default than a slightly slower cold start.
+ */
+let redis: Redis | null | undefined;
+
+function sharedCache(): Redis | null {
+  if (redis !== undefined) return redis;
+
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+
+  redis = url && token ? new Redis({ url, token }) : null;
+  return redis;
+}
+
+/** True when this process has a writable filesystem worth caching to. */
+function diskAvailable(): boolean {
+  // Vercel and most serverless runtimes expose a read-only filesystem outside
+  // /tmp, and instances are discarded between invocations — writing there is
+  // wasted work that also throws on every call.
+  return !process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME;
+}
 
 /** Entries older than this are ignored and swept. */
 const TTL_MS = 24 * 60 * 60 * 1000;
@@ -35,14 +67,34 @@ interface Envelope<T> {
 
 const memory = new Map<string, Envelope<unknown>>();
 
-/** Cache key. `headSha` is mandatory — see the module comment. */
+/**
+ * Cache key.
+ *
+ * **The user id is not optional.** Without it, a cache entry for a private
+ * pull request would be served to any user who asked for the same
+ * `repo:number:headSha` — including one whose GitHub account cannot see that
+ * repository at all. That is a cross-account data leak, and it is prevented
+ * here rather than by remembering to check permissions at every read.
+ *
+ * `headSha` is equally mandatory: a PR that has been pushed to must miss.
+ */
 export function cacheKey(
   namespace: string,
+  userId: number | string,
   repo: string,
   number: number,
   headSha: string,
 ): string {
-  return `${namespace}:${repo}:${number}:${headSha}`;
+  return `${namespace}:u${userId}:${repo}:${number}:${headSha}`;
+}
+
+/** Key for a whole-queue entry, which is inherently per-user. */
+export function queueKey(
+  userId: number | string,
+  repo: string | null,
+  limit: number,
+): string {
+  return `queue:u${userId}:${repo ?? "@me"}:${limit}`;
 }
 
 /** Filesystem-safe filename for a key. */
@@ -82,6 +134,22 @@ export async function read<T>(key: string): Promise<T | undefined> {
     memory.delete(key);
   }
 
+  const shared = sharedCache();
+  if (shared) {
+    try {
+      const envelope = await shared.get<Envelope<T>>(key);
+      if (envelope && Date.now() - envelope.storedAt <= TTL_MS) {
+        remember(key, envelope);
+        return envelope.value;
+      }
+    } catch {
+      // A Redis outage must not take the app down — fall through to disk,
+      // then to a miss, which simply means refetching from GitHub.
+    }
+  }
+
+  if (!diskAvailable()) return undefined;
+
   try {
     const raw = await readFile(join(CACHE_DIR, filenameFor(key)), "utf8");
     const envelope = JSON.parse(raw) as Envelope<T>;
@@ -107,6 +175,19 @@ export async function write<T>(key: string, value: T): Promise<void> {
 
   const envelope: Envelope<T> = { value, storedAt: Date.now(), key };
   remember(key, envelope);
+
+  const shared = sharedCache();
+  if (shared) {
+    try {
+      // Expire in Redis too, so an abandoned key cannot occupy the free tier
+      // indefinitely.
+      await shared.set(key, envelope, { ex: Math.floor(TTL_MS / 1000) });
+    } catch {
+      // Non-fatal, as above.
+    }
+  }
+
+  if (!diskAvailable()) return;
 
   try {
     await mkdir(CACHE_DIR, { recursive: true });
@@ -151,6 +232,18 @@ export async function ageOf(key: string): Promise<number | null> {
   const hit = memory.get(key);
   if (hit) return Date.now() - hit.storedAt;
 
+  const shared = sharedCache();
+  if (shared) {
+    try {
+      const envelope = await shared.get<Envelope<unknown>>(key);
+      if (envelope) return Date.now() - envelope.storedAt;
+    } catch {
+      // Fall through.
+    }
+  }
+
+  if (!diskAvailable()) return null;
+
   try {
     const raw = await readFile(join(CACHE_DIR, filenameFor(key)), "utf8");
     const envelope = JSON.parse(raw) as Envelope<unknown>;
@@ -179,9 +272,19 @@ export async function sweep(): Promise<number> {
   return removed;
 }
 
-/** Clear both tiers. Used by tests. */
+/** Clear the in-memory tier. Used by tests. */
 export function clearMemory(): void {
   memory.clear();
+}
+
+/** Reset the Redis client. Used by tests. */
+export function resetSharedCache(): void {
+  redis = undefined;
+}
+
+/** Which tiers are active, for the health endpoint. */
+export function cacheTiers(): { memory: true; redis: boolean; disk: boolean } {
+  return { memory: true, redis: sharedCache() !== null, disk: diskAvailable() };
 }
 
 export const __internals = { containsPatch, filenameFor, TTL_MS };

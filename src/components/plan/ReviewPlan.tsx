@@ -41,7 +41,7 @@ export default function ReviewPlan({ plan }: ReviewPlanProps) {
       {items.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           <div className="flex items-baseline justify-between px-4 py-2.5 border-b border-gray-100">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Your plan
             </h2>
             <span className="text-[11px] text-gray-500 tabular-nums">
@@ -58,7 +58,7 @@ export default function ReviewPlan({ plan }: ReviewPlanProps) {
                   key={`${item.repo}#${item.number}`}
                   className="flex items-start gap-3 px-4 py-2.5 border-b border-gray-50 last:border-b-0"
                 >
-                  <span className="mt-0.5 w-5 shrink-0 text-[11px] font-semibold text-gray-300 tabular-nums">
+                  <span className="mt-0.5 w-5 shrink-0 text-[11px] font-semibold text-gray-500 tabular-nums">
                     {item.position}
                   </span>
 
@@ -93,7 +93,7 @@ export default function ReviewPlan({ plan }: ReviewPlanProps) {
                       <Clock size={10} />
                       {item.minutes}m
                     </div>
-                    <div className="text-[10px] text-gray-300 tabular-nums mt-0.5">
+                    <div className="text-[10px] text-gray-500 tabular-nums mt-0.5">
                       {item.cumulativeMinutes}m in
                     </div>
                   </div>
@@ -120,7 +120,7 @@ export default function ReviewPlan({ plan }: ReviewPlanProps) {
       {deferred.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           <div className="px-4 py-2.5 border-b border-gray-100">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Not this session ({deferred.length})
             </h2>
           </div>

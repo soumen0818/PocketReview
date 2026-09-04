@@ -14,6 +14,7 @@ import { join } from "path";
 
 import {
   cacheKey,
+  queueKey,
   read,
   write,
   resolve,
@@ -35,17 +36,32 @@ async function reset() {
 // ---------------------------------------------------------------------------
 
 test("the cache key includes the head SHA", () => {
-  const a = cacheKey("queue", "acme/api", 42, "abc123");
-  const b = cacheKey("queue", "acme/api", 42, "def456");
+  const a = cacheKey("queue", 7, "acme/api", 42, "abc123");
+  const b = cacheKey("queue", 7, "acme/api", 42, "def456");
 
   assert.notEqual(a, b, "a pushed commit must miss");
-  assert.equal(a, "queue:acme/api:42:abc123");
+  assert.equal(a, "queue:u7:acme/api:42:abc123");
+});
+
+test("the cache key includes the user — cross-account isolation", () => {
+  // Without this, a cached entry for a private PR would be served to any user
+  // asking for the same repo:number:sha, including one whose GitHub account
+  // cannot see that repository at all.
+  const alice = cacheKey("queue", 1, "acme/private", 42, "sha");
+  const bob = cacheKey("queue", 2, "acme/private", 42, "sha");
+
+  assert.notEqual(alice, bob, "two users must never share a cache entry");
+});
+
+test("queue keys are per-user too", () => {
+  assert.notEqual(queueKey(1, "acme/api", 50), queueKey(2, "acme/api", 50));
+  assert.notEqual(queueKey(1, null, 50), queueKey(1, "acme/api", 50));
 });
 
 test("namespaces keep different kinds of value apart", () => {
   assert.notEqual(
-    cacheKey("signals", "acme/api", 1, "sha"),
-    cacheKey("explanation", "acme/api", 1, "sha"),
+    cacheKey("signals", 1, "acme/api", 1, "sha"),
+    cacheKey("explanation", 1, "acme/api", 1, "sha"),
   );
 });
 

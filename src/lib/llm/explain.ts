@@ -24,6 +24,7 @@ import { ExplanationCache } from "./cache";
 import { prioritiseDiff } from "./diff-prioritise";
 import { redactSecrets } from "../signals/diff";
 import { loadConfig } from "../config";
+import { currentUserId } from "../signals/github";
 import type { PRSignals } from "../signals/types";
 import type { RiskAssessment } from "../engines/types";
 
@@ -259,7 +260,10 @@ export async function explainRisk(
     );
   }
 
+  // Namespaced per user: an explanation of a private PR must never be served
+  // to a different account that cannot see that repository.
   const key = ExplanationCache.key(
+    currentUserId() ?? "local",
     signals.repo,
     signals.number,
     signals.headSha,
@@ -341,6 +345,7 @@ export async function summarisePR(signals: PRSignals): Promise<string> {
   }
 
   const key = ExplanationCache.key(
+    currentUserId() ?? "local",
     signals.repo,
     signals.number,
     signals.headSha,

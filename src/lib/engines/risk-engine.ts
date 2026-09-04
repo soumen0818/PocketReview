@@ -256,19 +256,62 @@ export function assessRisk(
   // --- reasons ---
   // Ranked by the points each dimension actually put on the board, so the
   // card's "top reasons" genuinely are the top reasons.
-  const dimensionReasons = dimensions
+  //
+  // **Breadth before depth.** Taking two reasons per dimension filled the card
+  // with near-duplicates — "392 lines added with no tests" followed by
+  // "correctness must be verified by reading alone" — and pushed distinct
+  // evidence from other dimensions off the visible list. On the payments
+  // fixture that cost the single most useful line on the card:
+  // *"settlement.ts was reverted 3 times recently"*.
+  //
+  // So one reason per dimension comes first, in contribution order, and any
+  // remaining slots are backfilled with the seconds.
+  // A dimension can score points and still have nothing worrying to say —
+  // historical instability reports "no recent instability in the files
+  // touched" while contributing a baseline amount. True, but it is reassurance
+  // occupying a slot on a card whose whole job is to explain risk, so it is
+  // held back for the breakdown screen.
+  const REASSURING =
+    /^(No recent instability|No significant|Well covered|Test-only change|No production code)/i;
+
+  const contributing = dimensions
     .filter((d) => d.contribution > 0.5 && d.reasons.length > 0)
-    .sort((a, b) => b.contribution - a.contribution)
-    .flatMap((d) => d.reasons.slice(0, 2));
+    .sort((a, b) => b.contribution - a.contribution);
+
+  const concerning = (reason: string) => !REASSURING.test(reason);
+
+  const dimensionReasons = [
+    ...contributing.map((d) => d.reasons[0]),
+    ...contributing.flatMap((d) => d.reasons.slice(1, 2)),
+  ].filter(concerning);
 
   // When a floor decided the score, say so first — otherwise the number and
   // the stated reasons would not add up, which is exactly the opacity this
   // engine exists to avoid.
-  const topReasons = (
-    floorApplied
-      ? [...applied.map((r) => r.label), ...dimensionReasons]
+  //
+  // Only the *highest* floor is named, though. Listing every floor that fired
+  // put two near-identical lines at the top ("Critical-path change with no
+  // test coverage" and "Touches a critical path") and pushed the concrete
+  // evidence — *"settlement.ts was reverted 3 times recently"* — off the card
+  // entirely. The generic label explains the number; the specific one is what
+  // a reviewer actually acts on, so it must not be the thing that gets cut.
+  const highestFloor = applied.reduce<FloorRule | null>(
+    (best, rule) => (best === null || rule.floor > best.floor ? rule : best),
+    null,
+  );
+
+  const ranked = (
+    floorApplied && highestFloor
+      ? [highestFloor.label, ...dimensionReasons]
       : dimensionReasons
   ).slice(0, 5);
+
+  // A genuinely unremarkable PR has nothing concerning to say. Falling back to
+  // the reassuring lines is better than an empty "why this score" panel.
+  const topReasons =
+    ranked.length > 0
+      ? ranked
+      : contributing.flatMap((d) => d.reasons.slice(0, 1)).slice(0, 5);
 
   // --- confidence ---
   const confidence = round(signalConfidence(signals.availability), 3);

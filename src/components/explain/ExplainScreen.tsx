@@ -138,7 +138,7 @@ export default function ExplainScreen({
                 <ol className="space-y-1.5">
                   {explanation.whereToLookFirst.map((item, i) => (
                     <li key={item} className="flex gap-2">
-                      <span className="shrink-0 font-semibold text-gray-300">
+                      <span className="shrink-0 font-semibold text-gray-500">
                         {i + 1}
                       </span>
                       <span>{item}</span>
@@ -153,7 +153,7 @@ export default function ExplainScreen({
                 <ul className="space-y-1.5">
                   {explanation.questionsToAsk.map((q) => (
                     <li key={q} className="flex gap-2">
-                      <span className="shrink-0 text-gray-300">·</span>
+                      <span className="shrink-0 text-gray-500">·</span>
                       <span>{q}</span>
                     </li>
                   ))}
@@ -176,7 +176,7 @@ export default function ExplainScreen({
 
             {/* Saying which model wrote this, and that it wrote only words, is
                 the credibility claim restated where it can be checked. */}
-            <p className="pt-1 text-[10px] text-gray-300">
+            <p className="pt-1 text-[10px] text-gray-500">
               Prose by {explanation.model}. The score above was computed in code
               — no model produced it.
             </p>
@@ -198,7 +198,7 @@ function Section({
 }) {
   return (
     <div>
-      <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+      <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
         {icon}
         {title}
       </p>

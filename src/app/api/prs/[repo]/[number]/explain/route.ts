@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { isValidRepo } from "@/lib/signals/github";
+import { withAuth } from "@/lib/auth/guard";
 import { toErrorResponse, notFound } from "@/lib/api-error";
 import { collectSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
 import { explainRisk } from "@/lib/llm/explain";
 import { LLMUnavailable } from "@/lib/llm/client";
-import { loadConfig, isDemoMode } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
 
 /**
@@ -43,31 +44,33 @@ export async function GET(
     );
   }
 
-  try {
-    const config = await loadConfig();
+  return withAuth(async (identity) => {
+    try {
+      const config = await loadConfig();
 
-    // Demo mode explains the fixtures, so the offline demo exercises the real
-    // prompt and the real model rather than canned prose.
-    const signals = isDemoMode()
-      ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
-      : await collectSignals(repo, number, { rules: config.rules });
+      // Demo mode explains the fixtures, so the offline demo exercises the real
+      // prompt and the real model rather than canned prose.
+      const signals = identity.demo
+        ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
+        : await collectSignals(repo, number, { rules: config.rules });
 
-    if (!signals) throw notFound(`${repo}#${number}`);
+      if (!signals) throw notFound(`${repo}#${number}`);
 
-    const risk = assessRisk(signals, { thresholds: config.thresholds });
-    const explanation = await explainRisk(signals, risk);
+      const risk = assessRisk(signals, { thresholds: config.thresholds });
+      const explanation = await explainRisk(signals, risk);
 
-    return NextResponse.json({ repo, number, explanation });
-  } catch (error) {
-    // An unavailable model is an expected state, not a server fault. 503 with
-    // a machine-readable `kind` lets the UI say something specific and true.
-    if (error instanceof LLMUnavailable) {
-      return NextResponse.json(
-        { error: error.message, kind: error.kind },
-        { status: 503 },
-      );
+      return NextResponse.json({ repo, number, explanation });
+    } catch (error) {
+      // An unavailable model is an expected state, not a server fault. 503 with
+      // a machine-readable `kind` lets the UI say something specific and true.
+      if (error instanceof LLMUnavailable) {
+        return NextResponse.json(
+          { error: error.message, kind: error.kind },
+          { status: 503 },
+        );
+      }
+
+      return toErrorResponse(error);
     }
-
-    return toErrorResponse(error);
-  }
+  });
 }
