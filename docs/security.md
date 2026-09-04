@@ -25,9 +25,13 @@ Triage decisions are recorded in client-side session state to drive the UI. They
 
 ## Server-side token guarantee ✅
 
-`GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are read only in API route handlers, never prefixed `NEXT_PUBLIC_`, and are absent from the client bundle. All GitHub and Anthropic calls originate server-side. Clients send no `Authorization` header.
+`GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are read only in API route handlers, never prefixed `NEXT_PUBLIC_`, and are absent from the client bundle. All GitHub and Anthropic calls originate server-side.
 
-Tokens live in `.env.local`, which is gitignored.
+**API Authentication:** When `API_SECRET` is configured in `.env.local`, all server endpoints are protected. Clients must pass `x-api-key: <secret>` or `Authorization: Bearer <secret>`. Without this, the API rejects requests with `401 Unauthorized`. (Note: leaving `API_SECRET` unset allows public access for local development, but must be set for deployment).
+
+**Rate Limiting:** All API endpoints are protected by in-memory sliding window rate limiting. The standard limit is 30 requests per minute per IP. The LLM explanation endpoint is stricter (10/min) and the triage endpoint allows higher burst (60/min) to prevent abuse and API credit drain.
+
+Tokens and secrets live in `.env.local`, which is gitignored.
 
 ---
 
@@ -79,7 +83,7 @@ PocketReview uses no database.
 
 ---
 
-## The Policy Gate ✅ Shipped — Phase 8
+## The Policy Gate ✅ Shipped
 
 > **Enforced.** [src/lib/policy/gate.ts](../src/lib/policy/gate.ts) runs on every fast-track, via `POST /api/triage`. A vetoed swipe leaves the PR in the deck and flips the card to show why.
 >
@@ -122,7 +126,7 @@ The gate can only **remove** eligibility; it can never grant it. All conditions 
 
 Even when built, fast-track produces a marked queue and at most an optional GitHub _comment_. It will not call the approve or merge API. That is a deliberate product decision.
 
-**Required test (Phase 8):** _critical paths can never be fast-tracked at any score._
+**Required test:** _critical paths can never be fast-tracked at any score._
 
 ---
 
@@ -156,4 +160,4 @@ Diff content reaches the model, and diffs are attacker-controllable on a public 
 
 ---
 
-_Verified against the codebase on 2026-09-03 — Phase 3 complete. The Policy Gate is Phase 8 and is not yet enforced._
+_Verified against the codebase on 2026-09-04 — API Authentication, Rate Limiting, and Policy Gate are fully enforced._

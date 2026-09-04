@@ -2,7 +2,7 @@
 
 > Environment variables and `.pocketreview.yml`.
 >
-> **Status:** ✅ **Shipped** — verified against [src/lib/config.ts](../src/lib/config.ts) and [path-rules.ts](../src/lib/signals/path-rules.ts). The `policy` block is parsed but **not yet enforced** (Phase 8) — flagged inline below.
+> **Status:** ✅ **Shipped** — verified against [src/lib/config.ts](../src/lib/config.ts) and [path-rules.ts](../src/lib/signals/path-rules.ts). The `policy` block is parsed and fully **enforced** by the policy gate.
 
 PocketReview runs with no configuration file. Every default is production-quality, and configuration is **additive** — you extend the defaults, you do not replace them.
 
@@ -13,6 +13,7 @@ PocketReview runs with no configuration file. Every default is production-qualit
 | Variable            | Required | Purpose                                                                           |
 | ------------------- | -------- | --------------------------------------------------------------------------------- |
 | `GITHUB_TOKEN`      | **Yes**  | Read-only token (`repo:read`). No merge or approve call exists in the codebase.   |
+| `API_SECRET`        | No       | Secures API endpoints against public access. Strongly recommended for deployment. |
 | `ANTHROPIC_API_KEY` | No       | Powers the explanation chat. Every score, ranking and breakdown works without it. |
 | `DEMO_MODE`         | No       | `1` or `true` serves fixtures instead of live GitHub data. No network needed.     |
 
@@ -24,6 +25,7 @@ GITHUB_TOKEN=ghp_your_token_here
 ```bash
 # .env.local — full
 GITHUB_TOKEN=ghp_your_token_here
+API_SECRET=your_super_secret_key_here
 ANTHROPIC_API_KEY=sk-ant-your_key_here
 # DEMO_MODE=1
 ```
@@ -158,9 +160,9 @@ Thresholds change **banding only**, never the score. A PR scoring 55 always scor
 
 ---
 
-## `policy` — the fast-track gate ⚠️ Phase 8
+## `policy` — the fast-track gate
 
-> **Parsed and available on the config object, but no code reads it yet.** `src/lib/policy/gate.ts` is unwritten and a right-swipe performs no eligibility check. **Setting these values changes nothing today.**
+> **Parsed and fully enforced.** `src/lib/policy/gate.ts` evaluates these rules on every fast-track attempt via `POST /api/triage`.
 
 ```yaml
 policy:

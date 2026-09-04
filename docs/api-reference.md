@@ -39,9 +39,11 @@
 | `GET /api/capacity`                  | ✅ Shipped           | §9             |
 | `POST /api/triage`                   | ✅ Shipped           | §11            |
 
-**Authentication.** All GitHub and Anthropic credentials are read server-side from the process environment. Clients send **no** `Authorization` header — see [security.md](./security.md).
+**Authentication.** `GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are read server-side from the process environment. To protect the API against public access, endpoints require `API_SECRET` to be passed via the `x-api-key: <secret>` or `Authorization: Bearer <secret>` headers. If `API_SECRET` is unset in `.env.local` (e.g. for local dev), endpoints remain open. See [security.md](./security.md).
 
-**The deterministic guarantee.** `/api/prs`, `/risk`, `/signals` and `/diff` never await an LLM. The deck paints from `/api/prs` alone.
+**Rate Limiting.** All API endpoints are protected by in-memory sliding window rate limiting. Exceeding limits returns `429 Too Many Requests`.
+
+**The deterministic guarantee.** `/api/prs`, `/risk`, `/signals`, and `/diff` never await an LLM. The deck paints from `/api/prs` alone.
 
 ---
 
@@ -672,10 +674,12 @@ Every endpoint returns `{ "error": string }` with an appropriate status.
 | Status | Meaning                                                                |
 | ------ | ---------------------------------------------------------------------- |
 | `400`  | Malformed `repo` slug or PR number — validated before any network call |
+| `401`  | Missing or invalid `API_SECRET` token (if configured)                  |
+| `429`  | Rate limit exceeded (client must back off)                             |
 | `500`  | Upstream failure (GitHub, Anthropic) or unexpected throw               |
 
 **Degradation over failure.** Within signal collection, a failing _source_ does not fail the request: `collect.ts` isolates each source, records the gap in `availability`, and the assessment returns with reduced `confidence`. Missing git history yields a lower confidence score, never a `500`.
 
 ---
 
-_Verified against the codebase on 2026-09-03 — Phase 3 complete, 74/74 tests passing._
+_Verified against the codebase on 2026-09-04 — API Authentication and Rate Limiting shipped, 181/181 tests passing._
