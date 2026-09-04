@@ -170,7 +170,7 @@ function build(
  * Ordered here as GitHub would return them — by recency, not by risk — so the
  * reordering the engine performs is visible.
  */
-export const DEMO_SIGNALS: PRSignals[] = [
+export const HAND_BUILT_SIGNALS: PRSignals[] = [
   // The centrepiece: two lines, catastrophic.
   build(
     {
@@ -404,3 +404,70 @@ export const DEMO_SIGNALS: PRSignals[] = [
     },
   ),
 ];
+
+/**
+ * Captured fixtures, when `fixtures/prs.json` exists.
+ *
+ * `npm run capture -- --repo owner/name` writes real PRs there. When present
+ * they are preferred over the hand-built set below, so the offline demo shows
+ * genuine data. Loaded synchronously at module scope because `DEMO_MODE` is a
+ * startup decision, not a per-request one.
+ */
+function loadCaptured(): PRSignals[] | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { readFileSync } = require("fs") as typeof import("fs");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { join } = require("path") as typeof import("path");
+
+    const raw = readFileSync(
+      join(process.cwd(), "fixtures", "prs.json"),
+      "utf8",
+    );
+    const parsed = JSON.parse(raw) as { signals?: PRSignals[] };
+
+    return Array.isArray(parsed.signals) && parsed.signals.length > 0
+      ? parsed.signals
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when captured real PRs are part of the demo queue. */
+export const USING_CAPTURED_FIXTURES = loadCaptured() !== null;
+
+/**
+ * What `DEMO_MODE=1` serves.
+ *
+ * **Both sets, not one or the other.** Replacing the hand-built scenarios with
+ * captured PRs silently broke the demo: a real repository's recent queue is
+ * mostly dependency bumps, so the one-line auth change the script opens on
+ * (architecture §20, 1:00) and the critical-path PR the policy gate refuses
+ * (2:15) both vanished from the deck.
+ *
+ * Keeping both means the demo shows genuine captured data *and* still contains
+ * the scenarios that make the argument. Everything runs through the real
+ * engine either way — demo mode swaps the data source, never the scoring
+ * (Decision Log #13).
+ *
+ * Duplicate `repo#number` pairs are impossible in practice (the hand-built set
+ * uses a fictional repo) but are de-duplicated defensively, because two cards
+ * with the same identity would break triage bookkeeping.
+ */
+function buildDemoQueue(): PRSignals[] {
+  const captured = loadCaptured() ?? [];
+  const seen = new Set<string>();
+  const queue: PRSignals[] = [];
+
+  for (const signals of [...HAND_BUILT_SIGNALS, ...captured]) {
+    const id = `${signals.repo}#${signals.number}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    queue.push(signals);
+  }
+
+  return queue;
+}
+
+export const DEMO_SIGNALS: PRSignals[] = buildDemoQueue();

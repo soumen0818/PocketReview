@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
+import { toErrorResponse } from "@/lib/api-error";
 import {
   listReviewRequested,
   listRepoPRs,
   getViewerLogin,
+  isRateLimitError,
+  rateLimitState,
+  isValidRepo,
 } from "@/lib/signals/github";
+import {
+  read as cacheRead,
+  write as cacheWrite,
+  ageOf,
+} from "@/lib/cache/store";
 import { collectQueueSignals } from "@/lib/signals/collect";
 import { assessRisk, baselineScore } from "@/lib/engines/risk-engine";
 import { priorityScore, rankQueue } from "@/lib/engines/priority-engine";
 import { estimateEffort, formatDuration } from "@/lib/engines/effort-estimator";
 import { loadConfig, isDemoMode } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
+import { stripPatch } from "@/lib/signals/types";
 import type { PRSignals } from "@/lib/signals/types";
 import type { TriagedPR, QueueSummary } from "@/lib/types";
 
@@ -44,7 +54,7 @@ export async function GET(request: Request) {
     ? Math.min(Math.max(Number(limitParam) || 50, 1), 100)
     : 50;
 
-  if (repo && !/^[^/]+\/[^/]+$/.test(repo)) {
+  if (repo && !isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
@@ -57,9 +67,44 @@ export async function GET(request: Request) {
     // Demo mode swaps the data source, never the scoring — fixtures run
     // through the same engine, so what you see offline is what the engine
     // genuinely produces.
-    const signals = isDemoMode()
-      ? DEMO_SIGNALS
-      : await collectLiveSignals(repo, limit, config.rules);
+    // The queue cache key covers the whole request shape, so a different repo
+    // or limit does not read another query's answer.
+    const queueKey = `queue:${repo ?? "@me"}:${limit}`;
+
+    let signals: PRSignals[];
+    let stale: { ageMs: number; reason: string } | null = null;
+
+    if (isDemoMode()) {
+      signals = DEMO_SIGNALS;
+    } else {
+      try {
+        signals = await collectLiveSignals(repo, limit, config.rules);
+        // Cache the measurements — never the diffs. `cacheWrite` enforces that
+        // structurally and throws if a patch ever reaches it.
+        await cacheWrite(
+          queueKey,
+          signals.map((s) => ({
+            ...s,
+            files: s.files.map((file) => stripPatch(file)),
+          })),
+        ).catch(() => {});
+      } catch (error) {
+        // Rate limited, or GitHub unreachable. Serve the last good queue rather
+        // than an error page — but say plainly that it is stale.
+        const cached = await cacheRead<PRSignals[]>(queueKey);
+        if (!cached) throw error;
+
+        const ageMs = (await ageOf(queueKey)) ?? 0;
+        const limited = isRateLimitError(error);
+        stale = {
+          ageMs,
+          reason: limited
+            ? "GitHub rate limit reached"
+            : "GitHub is unreachable",
+        };
+        signals = cached;
+      }
+    }
 
     if (signals.length === 0) {
       return NextResponse.json({ prs: [], summary: emptySummary() });
@@ -114,10 +159,12 @@ export async function GET(request: Request) {
     return NextResponse.json({
       prs,
       summary: summarise(prs, scored.length - prs.length),
+      // Present only when the queue came from cache. The UI must show a banner.
+      stale,
+      rateLimit: isDemoMode() ? null : rateLimitState(),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(error);
   }
 }
 

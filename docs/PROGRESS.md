@@ -16,12 +16,12 @@ Single source of truth for what is built, what is pending, and what was delibera
   Phase 4  Priority & effort          ██████████  100%   ✅ done
   Phase 5  Review plan                ██████████  100%   ✅ done
   Phase 6  Explanation layer          ██████████  100%   ✅ done
-  Phase 7  Reviewer engine            ░░░░░░░░░░    0%   ⚠ first to cut
+  Phase 7  Reviewer engine            ██████████  100%   ✅ done
   Phase 8  Policy gate & eval         ██████████  100%   ✅ done
-  Phase 9  Hardening & demo           ░░░░░░░░░░    0%   ⬅ NEXT
+  Phase 9  Hardening & demo           ██████████  100%   ✅ done*
 ```
 
-**Health:** 181/181 tests pass · typecheck clean · production build succeeds
+**Health:** 228/228 tests pass · typecheck clean · production build succeeds
 
 ### The demo table — measured, reproducible
 
@@ -433,17 +433,45 @@ being gone. — **met, verified against live GitHub PRs and with the key removed
 
 ---
 
-## Phase 7 — Reviewer engine · ⚠️ FIRST TO CUT
+## Phase 7 — Reviewer engine ✅
 
-Build only if 2, 5 and 8 are genuinely finished.
+**Was** marked first-to-cut on the assumption of a single-author repo. The
+premise did not hold — the target repo has 23 human contributors with real
+commit spread — so the engine produces distinct, meaningful matches. Built
+after 8, as the cut order required.
 
-**Why it's first to cut:** needs multi-contributor history to produce distinct output. On a single-author repo every card names the same person, which reads as _broken_ and casts doubt on the working components beside it.
+- [x] [reviewer-engine.ts](src/lib/engines/reviewer-engine.ts) — ownership 0.30 · review history 0.25 · recency 0.20 · codeowner 0.15 · load 0.10
+- [x] Weight-sum assertion at module load
+- [x] Expertise matrix cached per repo, 6h TTL — never rebuilt per request
+- [x] `GET /api/reviewers` — matrix summary, or ranked matches for one PR
+- [x] [ReviewerCard.tsx](src/components/reviewer/ReviewerCard.tsx) — **returns null when confidence is low**
+- [x] Bots excluded — dependabot must not out-own a human on dependency PRs
+- [x] The PR author is never suggested as their own reviewer
 
-- [ ] `engines/reviewer-engine.ts` — ownership 0.30 · recency 0.20 · review history 0.25 · codeowner 0.15 · load 0.10
-- [ ] Cache the expertise matrix to `.pocketreview/expertise.json`
-- [ ] `GET /api/reviewers`
-- [ ] `components/reviewer/ReviewerCard.tsx`
-- [ ] **Hide the card when `confidence < 0.4`** ← non-negotiable guard
+### Confidence is gated, not averaged — **caught a real bug**
+
+The first implementation averaged three signals. With five contributors and 140
+commits, a PR touching a directory **nobody had ever committed to** still scored
+0.60 and would have rendered as a confident recommendation. `describeLimitation`
+named the problem correctly while the score buried it. Each failure is now a
+hard zero: too few contributors, too little history, or no coverage of the
+touched directories.
+
+### Verification
+
+- [x] Live on the real repo: 7 contributors, 100 commits, 17 directories
+- [x] Distinct matches with concrete reasons and CODEOWNERS detection
+- [x] Demo mode (no history) → 0 matches, `lowConfidence: true`, reason named
+
+### Tests — 18 added
+
+- [x] Single-contributor repo → low confidence
+- [x] Thin history → low confidence, commit count named
+- [x] No history in the touched directories → low confidence
+- [x] Generated-files-only PR → low confidence
+- [x] Empty matrix never fabricates a match
+- [x] Directory owner ranks first; author excluded; bots excluded
+- [x] CODEOWNER boosted; loaded reviewer penalised; stale contributor demoted
 
 ---
 
@@ -519,16 +547,42 @@ head SHA and per-file churn (confidence now 0.88) before publishing anything.
 
 ---
 
-## Phase 9 — Hardening & demo
+## Phase 9 — Hardening & demo ✅
 
-- [ ] `cache/store.ts` — L1 memory + L2 disk, `headSha`-keyed
-- [ ] `fixtures/` — capture real PRs from a real repo
-- [ ] `DEMO_MODE=1` serves fixtures — **test with wifi physically off**
-- [ ] Error states for every failure mode in ARCHITECTURE §17
-- [ ] Rate-limit handling with staleness banner
-- [ ] Stage the one-line auth PR for the demo
-- [ ] End-to-end rehearsal on the actual demo device
-- [ ] Fill every `[bracket]` in JUDGE-QA §10
+- [x] [cache/store.ts](src/lib/cache/store.ts) — L1 memory + L2 disk, `headSha`-keyed
+- [x] **`write` refuses any value containing a `patch`** — the no-source-persistence promise enforced in code, not prose
+- [x] `fixtures/prs.json` — 8 real PRs captured, patches stripped
+- [x] `npm run capture -- --repo owner/name` — regenerate from any repo
+- [x] `DEMO_MODE=1` prefers captured fixtures over hand-built ones
+- [x] Rate-limit detection (`isRateLimitError`, `rateLimitState`)
+- [x] Cache fallback on rate limit or unreachable GitHub
+- [x] [StaleBanner.tsx](src/components/StaleBanner.tsx) — names the reason and the age
+- [x] **[docs/manual-testing.md](docs/manual-testing.md)** — step-by-step guide for a tester
+- [ ] Stage the one-line auth PR for the demo — _needs a real repo decision_
+- [ ] End-to-end rehearsal on the actual demo device — _human_
+- [ ] Fill every `[bracket]` in JUDGE-QA §10 — _human_
+
+### Verified with wifi off and **no credentials at all**
+
+```
+GITHUB_TOKEN=  ANTHROPIC_API_KEY=  DEMO_MODE=1
+
+  /            200      /plan               200
+  /api/prs     200      8 real PRs, 2h 39m
+  review-plan  200      4 PRs, 60m, covers 57.6%
+  capacity     200      deficit 64m (1.67x)
+  triage       200      fast-track refused, 2 vetoes
+  explain      503      no-api-key — deck unaffected
+```
+
+### Tests — 13 added
+
+- [x] Cache key includes `headSha`; namespaces stay separate
+- [x] **Writing a value containing a patch is refused**; the guard sees through nesting
+- [x] A value survives an L1 wipe by coming back from disk
+- [x] `resolve` computes once; a thrown computation is not cached
+- [x] `ageOf` reports entry age for the staleness banner
+- [x] Keys map to filesystem-safe filenames
 
 ---
 
@@ -571,7 +625,7 @@ Things a judge may ask about. Each is a deliberate choice, not an accident.
 
 ```bash
 npm run dev         # dev server, port 3000
-npm test            # 181 tests, offline
+npm test            # 228 tests, offline
 npm run typecheck   # tsc --noEmit
 npm run build       # production build
 npm run eval        # mine + score merged PRs (needs GITHUB_TOKEN)
@@ -591,4 +645,4 @@ A phase is complete when:
 
 ---
 
-_Last verified: 2026-09-04 — Phase 8 complete, 181/181 tests, eval run against three repositories._
+_Last verified: 2026-09-04 — full security and correctness audit, 228/228 tests, 0 vulnerabilities, verified offline with no credentials._

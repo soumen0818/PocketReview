@@ -74,6 +74,65 @@ export async function getViewerLogin(): Promise<string | null> {
 }
 
 /**
+ * Whether the last GitHub call hit a rate limit, and when it resets.
+ *
+ * Recorded rather than thrown so the queue can fall back to cache and the UI
+ * can say *why* it is showing stale data. A silent fallback would be worse
+ * than the error: the reviewer would trust an out-of-date queue.
+ */
+export interface RateLimitState {
+  limited: boolean;
+  /** Unix seconds when the limit resets, when known. */
+  resetAt: number | null;
+  remaining: number | null;
+}
+
+let rateLimit: RateLimitState = {
+  limited: false,
+  resetAt: null,
+  remaining: null,
+};
+
+export function rateLimitState(): RateLimitState {
+  return { ...rateLimit };
+}
+
+/** Record rate-limit headers from a response or error. */
+export function noteRateLimit(headers: Record<string, unknown> | undefined) {
+  if (!headers) return;
+
+  const remaining = Number(headers["x-ratelimit-remaining"]);
+  const reset = Number(headers["x-ratelimit-reset"]);
+
+  if (Number.isFinite(remaining)) {
+    rateLimit = {
+      remaining,
+      resetAt: Number.isFinite(reset) ? reset : null,
+      limited: remaining <= 0,
+    };
+  }
+}
+
+/** True when an error is a GitHub rate-limit or abuse-detection response. */
+export function isRateLimitError(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  if (status !== 403 && status !== 429) return false;
+
+  const headers = (
+    error as { response?: { headers?: Record<string, unknown> } }
+  )?.response?.headers;
+  noteRateLimit(headers);
+
+  const remaining = Number(headers?.["x-ratelimit-remaining"]);
+  return status === 429 || remaining === 0;
+}
+
+/** Reset the recorded state. Used by tests. */
+export function resetRateLimit(): void {
+  rateLimit = { limited: false, resetAt: null, remaining: null };
+}
+
+/**
  * Run tasks with a bounded concurrency.
  *
  * Prevents a 50-PR queue from opening 300 sockets at once and tripping
@@ -102,12 +161,32 @@ export async function mapLimit<T, R>(
   return results;
 }
 
-/** Split "owner/name" into its parts. */
+/**
+ * Validate an `owner/name` repository slug.
+ *
+ * Deliberately stricter than "contains one slash". GitHub owners and repository
+ * names are limited to alphanumerics, hyphens, underscores and dots, with
+ * length caps of 39 and 100. Accepting anything looser let newlines, null bytes
+ * and unbounded strings reach the HTTP layer and the cache key — none of which
+ * were exploitable in practice (Octokit encodes path params and cache
+ * filenames are SHA-256 hashed), but validating to the real shape is free and
+ * removes the class of problem rather than one instance of it.
+ */
+export const REPO_SLUG =
+  /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
+
+/** True when `repo` is a well-formed `owner/name` slug. */
+export function isValidRepo(repo: string | null | undefined): repo is string {
+  return typeof repo === "string" && REPO_SLUG.test(repo);
+}
+
+/** Split "owner/name" into its parts. Throws on a malformed slug. */
 export function splitRepo(repo: string): { owner: string; name: string } {
-  const [owner, name] = repo.split("/");
-  if (!owner || !name) {
+  if (!isValidRepo(repo)) {
     throw new Error(`Invalid repository "${repo}" — expected "owner/name".`);
   }
+
+  const [owner, name] = repo.split("/");
   return { owner, name };
 }
 

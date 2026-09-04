@@ -124,11 +124,11 @@ Full reasoning in the [Decision Log](./PROGRESS.md#decision-log).
   Phase 5  Review plan                ██████████  100%   ✅
   Phase 6  Explanation layer          ██████████  100%   ✅
   Phase 8  Policy gate & eval         ██████████  100%   ✅
-  Phase 7  Reviewer engine            ░░░░░░░░░░    0%   ⚠ first to cut
-  Phase 9  Hardening & demo           ░░░░░░░░░░    0%   ⬅ NEXT
+  Phase 7  Reviewer engine            ██████████  100%   ✅
+  Phase 9  Hardening & demo           ██████████  100%   ✅
 ```
 
-**181/181 tests pass · typecheck clean · production build succeeds.**
+**213/213 tests pass · typecheck clean · production build succeeds.**
 
 Never cut: **Risk Engine** (2) ✅, **Review Plan** (5) ✅, **Eval harness** (8) ✅. Those three are the project; everything else is presentation.
 

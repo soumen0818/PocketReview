@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { toErrorResponse, notFound, readJsonBody } from "@/lib/api-error";
+import { isValidRepo } from "@/lib/signals/github";
 import { collectSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
 import { evaluateFastTrack } from "@/lib/policy/gate";
@@ -25,12 +27,9 @@ const ACTIONS: TriageAction[] = ["fast-track", "needs-review", "defer"];
 export async function POST(request: Request) {
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Request body must be JSON." },
-      { status: 400 },
-    );
+    body = await readJsonBody(request);
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
   const { repo, number, action } = (body ?? {}) as {
@@ -39,7 +38,7 @@ export async function POST(request: Request) {
     action?: TriageAction;
   };
 
-  if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
+  if (!isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
@@ -67,12 +66,7 @@ export async function POST(request: Request) {
       ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
       : await collectSignals(repo, number as number, { rules: config.rules });
 
-    if (!signals) {
-      return NextResponse.json(
-        { error: `${repo}#${number} not found.` },
-        { status: 404 },
-      );
-    }
+    if (!signals) throw notFound(`${repo}#${number}`);
 
     const risk = assessRisk(signals, { thresholds: config.thresholds });
 
@@ -104,7 +98,6 @@ export async function POST(request: Request) {
       performedOnGitHub: "none",
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(error);
   }
 }

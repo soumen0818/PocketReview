@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { toErrorResponse, notFound } from "@/lib/api-error";
+import { isValidRepo } from "@/lib/signals/github";
 import { collectSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
-import { loadConfig } from "@/lib/config";
+import { loadConfig, isDemoMode } from "@/lib/config";
+import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
 
 /**
  * GET /api/prs/:repo/:number/risk
@@ -29,7 +32,7 @@ export async function GET(
     );
   }
 
-  if (!/^[^/]+\/[^/]+$/.test(repo)) {
+  if (!isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
@@ -38,9 +41,13 @@ export async function GET(
 
   try {
     const config = await loadConfig();
-    const signals = await collectSignals(repo, number, {
-      rules: config.rules,
-    });
+    // Demo mode reads the same fixtures the deck does, so every documented
+    // endpoint works offline rather than only the ones the UI happens to call.
+    const signals = isDemoMode()
+      ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
+      : await collectSignals(repo, number, { rules: config.rules });
+
+    if (!signals) throw notFound(`${repo}#${number}`);
     const risk = assessRisk(signals, { thresholds: config.thresholds });
 
     return NextResponse.json({
@@ -53,7 +60,6 @@ export async function GET(
       risk,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(error);
   }
 }

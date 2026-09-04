@@ -32,11 +32,7 @@ import {
   parseCodeowners,
   ownersForPath,
 } from "./classify";
-import {
-  countPatchLines,
-  countDependencyChanges,
-  detectTestRemoval,
-} from "./diff";
+import { countDependencyChanges, detectTestRemoval } from "./diff";
 import { normalisedEntropy, clamp, ratio, round, saturate } from "../math";
 import {
   emptyAvailability,

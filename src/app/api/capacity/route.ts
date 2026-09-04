@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { toErrorResponse } from "@/lib/api-error";
 import {
   listReviewRequested,
   listRepoPRs,
   getViewerLogin,
+  isValidRepo,
 } from "@/lib/signals/github";
 import { collectQueueSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
@@ -35,7 +37,7 @@ export async function GET(request: Request) {
   const capacityParam = url.searchParams.get("capacity");
   const limitParam = url.searchParams.get("limit");
 
-  if (repo && !/^[^/]+\/[^/]+$/.test(repo)) {
+  if (repo && !isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
@@ -81,8 +83,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(capacityReport(candidates, capacityMinutes));
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(error);
   }
 }
 

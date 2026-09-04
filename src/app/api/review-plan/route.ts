@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { toErrorResponse, readJsonBody } from "@/lib/api-error";
 import {
   listReviewRequested,
   listRepoPRs,
   getViewerLogin,
+  isValidRepo,
 } from "@/lib/signals/github";
 import { collectQueueSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
@@ -34,12 +36,9 @@ import type { PRSignals } from "@/lib/signals/types";
 export async function POST(request: Request) {
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Request body must be JSON." },
-      { status: 400 },
-    );
+    body = await readJsonBody(request);
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
   const {
@@ -61,7 +60,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (repo !== undefined && !/^[^/]+\/[^/]+$/.test(repo)) {
+  if (repo !== undefined && !isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
@@ -109,8 +108,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ plan, capacity });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(error);
   }
 }
 

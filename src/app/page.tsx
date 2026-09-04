@@ -7,11 +7,13 @@ import SwipeActions from "@/components/SwipeActions";
 import ExplainScreen from "@/components/explain/ExplainScreen";
 import EmptyState from "@/components/EmptyState";
 import QueueSummaryBar from "@/components/QueueSummaryBar";
+import StaleBanner from "@/components/StaleBanner";
 import DimensionBreakdown from "@/components/risk/DimensionBreakdown";
 import VetoCard from "@/components/risk/VetoCard";
 import { useSwipeHistory } from "@/hooks/useSwipeHistory";
 import { usePRs } from "@/hooks/usePRs";
 import { useExplanation } from "@/hooks/useExplanation";
+import { useReviewers } from "@/hooks/useReviewers";
 import type { TriagedPR } from "@/lib/types";
 import type { PolicyVerdict } from "@/lib/policy/gate";
 
@@ -19,7 +21,7 @@ type TriggerSwipe = { direction: "left" | "right" } | null;
 
 export default function Home() {
   const { hasReviewed, addTriage } = useSwipeHistory();
-  const { prs, summary, loading, error, refetch, removePR } =
+  const { prs, summary, stale, loading, error, refetch, removePR } =
     usePRs(hasReviewed);
   const {
     explanation,
@@ -29,6 +31,12 @@ export default function Home() {
     fetchExplanation,
     reset: resetExplanation,
   } = useExplanation();
+  const {
+    suggestion: reviewers,
+    loading: reviewersLoading,
+    fetchReviewers,
+    reset: resetReviewers,
+  } = useReviewers();
 
   const [explainPR, setExplainPR] = useState<TriagedPR | null>(null);
   const [breakdownPR, setBreakdownPR] = useState<TriagedPR | null>(null);
@@ -107,7 +115,8 @@ export default function Home() {
     if (!topPR) return;
     setExplainPR(topPR);
     fetchExplanation(topPR.repository.nameWithOwner, topPR.number);
-  }, [topPR, fetchExplanation]);
+    fetchReviewers(topPR.repository.nameWithOwner, topPR.number);
+  }, [topPR, fetchExplanation, fetchReviewers]);
 
   const triggerNeedsReview = useCallback(() => {
     if (!topPR) return;
@@ -164,9 +173,12 @@ export default function Home() {
             true,
           )
         }
+        reviewers={reviewers}
+        reviewersLoading={reviewersLoading}
         onClose={() => {
           setExplainPR(null);
           resetExplanation();
+          resetReviewers();
         }}
       />
     );
@@ -197,6 +209,7 @@ export default function Home() {
           <EmptyState onRefresh={refetch} loading={loading} />
         ) : (
           <>
+            <StaleBanner stale={stale} />
             <QueueSummaryBar summary={summary} remaining={prs.length} />
 
             <div className="flex flex-col flex-1 min-h-0 px-4">

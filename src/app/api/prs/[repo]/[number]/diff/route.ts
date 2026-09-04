@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { getPRDiff } from "@/lib/signals/github";
+import { toErrorResponse } from "@/lib/api-error";
+import { getPRDiff, isValidRepo } from "@/lib/signals/github";
 import { redactSecrets } from "@/lib/signals/diff";
+import { isDemoMode } from "@/lib/config";
 
 /**
  * GET /api/prs/:repo/:number/diff
@@ -26,10 +28,24 @@ export async function GET(
     );
   }
 
-  if (!/^[^/]+\/[^/]+$/.test(repo)) {
+  if (!isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
+    );
+  }
+
+  // Demo fixtures deliberately carry no diff text — they are committed to the
+  // repository, and `docs/security.md` promises no source code is persisted.
+  // Saying so is better than a 500 from a GitHub call that cannot succeed
+  // without a token.
+  if (isDemoMode()) {
+    return NextResponse.json(
+      {
+        error:
+          "Diffs are unavailable in demo mode — the committed fixtures carry measurements only, never source code.",
+      },
+      { status: 409 },
     );
   }
 
@@ -39,7 +55,6 @@ export async function GET(
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(error);
   }
 }

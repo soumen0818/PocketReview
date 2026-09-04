@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { isValidRepo } from "@/lib/signals/github";
+import { toErrorResponse, notFound } from "@/lib/api-error";
 import { collectSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
 import { explainRisk } from "@/lib/llm/explain";
@@ -34,7 +36,7 @@ export async function GET(
     );
   }
 
-  if (!/^[^/]+\/[^/]+$/.test(repo)) {
+  if (!isValidRepo(repo)) {
     return NextResponse.json(
       { error: `Invalid repository "${repo}" — expected "owner/name".` },
       { status: 400 },
@@ -50,12 +52,7 @@ export async function GET(
       ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
       : await collectSignals(repo, number, { rules: config.rules });
 
-    if (!signals) {
-      return NextResponse.json(
-        { error: `${repo}#${number} is not in the demo fixture set.` },
-        { status: 404 },
-      );
-    }
+    if (!signals) throw notFound(`${repo}#${number}`);
 
     const risk = assessRisk(signals, { thresholds: config.thresholds });
     const explanation = await explainRisk(signals, risk);
@@ -71,7 +68,6 @@ export async function GET(
       );
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(error);
   }
 }
