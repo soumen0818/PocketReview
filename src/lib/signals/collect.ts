@@ -33,7 +33,6 @@ import {
   ownersForPath,
 } from "./classify";
 import {
-  countPatchLines,
   countDependencyChanges,
   detectTestRemoval,
 } from "./diff";

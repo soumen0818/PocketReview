@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPRDiff } from "@/lib/signals/github";
 import { redactSecrets } from "@/lib/signals/diff";
+import { guardRequest } from "@/lib/api-auth";
 
 /**
  * GET /api/prs/:repo/:number/diff
@@ -11,9 +12,12 @@ import { redactSecrets } from "@/lib/signals/diff";
  * `repo` is URL-encoded "owner%2Fname".
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ repo: string; number: string }> },
 ) {
+  const guard = guardRequest(request);
+  if (guard) return guard;
+
   const { repo: encodedRepo, number: rawNumber } = await params;
 
   const repo = decodeURIComponent(encodedRepo);

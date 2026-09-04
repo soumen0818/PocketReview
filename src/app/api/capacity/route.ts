@@ -11,6 +11,7 @@ import { estimateEffort } from "@/lib/engines/effort-estimator";
 import { capacityReport, type PlanCandidate } from "@/lib/engines/review-plan";
 import { loadConfig, isDemoMode } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
+import { guardRequest } from "@/lib/api-auth";
 import type { PRSignals } from "@/lib/signals/types";
 
 /** Default assumed review capacity, in minutes, when none is given. */
@@ -30,6 +31,9 @@ const DEFAULT_CAPACITY_MINUTES = 90;
  * they control and can vouch for is worth more than a fabricated one.
  */
 export async function GET(request: Request) {
+  const guard = guardRequest(request);
+  if (guard) return guard;
+
   const url = new URL(request.url);
   const repo = url.searchParams.get("repo");
   const capacityParam = url.searchParams.get("capacity");

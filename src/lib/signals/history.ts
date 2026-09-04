@@ -11,7 +11,7 @@
  * confidence can be reported honestly.
  */
 
-import { github, splitRepo } from "./github";
+import { github, splitRepo, mapLimit } from "./github";
 
 /** Aggregated history for the files a PR touches. */
 export interface HistorySignals {
@@ -69,7 +69,7 @@ export async function collectHistory(
   // score, and keeps a 300-file PR from issuing 300 requests.
   const targets = paths.slice(0, 40);
 
-  const { mapLimit } = await import("./github");
+  // Dynamic imports removed, now uses top-level import
 
   await mapLimit(targets, 6, async (path) => {
     try {
@@ -216,7 +216,7 @@ export async function buildExpertiseMatrix(
       per_page: Math.min(maxCommits, 100),
     });
 
-    const { mapLimit } = await import("./github");
+    // Dynamic imports removed, now uses top-level import
 
     // The list endpoint omits per-commit file lists, so fetch each commit.
     // Bounded to keep this affordable.

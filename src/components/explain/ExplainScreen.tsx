@@ -128,7 +128,7 @@ export default function ExplainScreen({
               <Section title="Where to look first" icon={<Eye size={11} />}>
                 <ol className="space-y-1.5">
                   {explanation.whereToLookFirst.map((item, i) => (
-                    <li key={item} className="flex gap-2">
+                    <li key={i} className="flex gap-2">
                       <span className="shrink-0 font-semibold text-gray-300">
                         {i + 1}
                       </span>
@@ -142,8 +142,8 @@ export default function ExplainScreen({
             {explanation.questionsToAsk.length > 0 && (
               <Section title="Questions to ask" icon={<HelpCircle size={11} />}>
                 <ul className="space-y-1.5">
-                  {explanation.questionsToAsk.map((q) => (
-                    <li key={q} className="flex gap-2">
+                  {explanation.questionsToAsk.map((q, i) => (
+                    <li key={i} className="flex gap-2">
                       <span className="shrink-0 text-gray-300">·</span>
                       <span>{q}</span>
                     </li>

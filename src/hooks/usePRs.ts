@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { TriagedPR, QueueSummary } from "@/lib/types";
 
 interface QueueResponse {
@@ -32,6 +32,11 @@ export function usePRs(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const hasReviewedRef = useRef(hasReviewed);
+  useEffect(() => {
+    hasReviewedRef.current = hasReviewed;
+  }, [hasReviewed]);
+
   const fetchPRs = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -47,7 +52,7 @@ export function usePRs(
       // Already-triaged PRs are filtered client-side so a refresh does not
       // resurrect decisions made moments ago.
       const remaining = data.prs.filter(
-        (pr) => !hasReviewed(pr.repository.nameWithOwner, pr.number),
+        (pr) => !hasReviewedRef.current(pr.repository.nameWithOwner, pr.number),
       );
 
       setPRs(remaining);
@@ -57,7 +62,7 @@ export function usePRs(
     } finally {
       setLoading(false);
     }
-  }, [hasReviewed]);
+  }, []);
 
   useEffect(() => {
     fetchPRs();

@@ -5,6 +5,7 @@ import { explainRisk } from "@/lib/llm/explain";
 import { LLMUnavailable } from "@/lib/llm/client";
 import { loadConfig, isDemoMode } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
+import { guardRequest } from "@/lib/api-auth";
 
 /**
  * GET /api/prs/:repo/:number/explain
@@ -19,9 +20,13 @@ import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
  * reason rather than breaking the card.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ repo: string; number: string }> },
 ) {
+  // explain triggers an LLM call — stricter limit than other endpoints
+  const guard = guardRequest(request, { maxPerMinute: 10 });
+  if (guard) return guard;
+
   const { repo: encodedRepo, number: rawNumber } = await params;
 
   const repo = decodeURIComponent(encodedRepo);

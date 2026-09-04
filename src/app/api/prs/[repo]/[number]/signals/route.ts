@@ -3,6 +3,7 @@ import { collectSignals } from "@/lib/signals/collect";
 import { signalConfidence } from "@/lib/signals/types";
 import { assessRisk, baselineScore } from "@/lib/engines/risk-engine";
 import { loadConfig } from "@/lib/config";
+import { guardRequest } from "@/lib/api-auth";
 
 /**
  * GET /api/prs/:repo/:number/signals
@@ -14,9 +15,12 @@ import { loadConfig } from "@/lib/config";
  * `repo` is URL-encoded "owner%2Fname".
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ repo: string; number: string }> },
 ) {
+  const guard = guardRequest(request);
+  if (guard) return guard;
+
   const { repo: encodedRepo, number: rawNumber } = await params;
 
   const repo = decodeURIComponent(encodedRepo);

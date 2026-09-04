@@ -4,6 +4,7 @@ import { assessRisk } from "@/lib/engines/risk-engine";
 import { evaluateFastTrack } from "@/lib/policy/gate";
 import { loadConfig, isDemoMode } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
+import { guardRequest } from "@/lib/api-auth";
 import type { TriageAction } from "@/lib/types";
 
 const ACTIONS: TriageAction[] = ["fast-track", "needs-review", "defer"];
@@ -23,6 +24,9 @@ const ACTIONS: TriageAction[] = ["fast-track", "needs-review", "defer"];
  * the reasons are returned so the card can show them.
  */
 export async function POST(request: Request) {
+  const guard = guardRequest(request, { maxPerMinute: 60 });
+  if (guard) return guard;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -33,11 +37,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const { repo, number, action } = (body ?? {}) as {
-    repo?: string;
-    number?: number;
-    action?: TriageAction;
-  };
+  const raw = (body ?? {}) as Record<string, unknown>;
+  const repo = typeof raw.repo === "string" ? raw.repo : undefined;
+  const number =
+    typeof raw.number === "number" ? raw.number : undefined;
+  const action =
+    typeof raw.action === "string" ? (raw.action as TriageAction) : undefined;
 
   if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
     return NextResponse.json(
@@ -46,7 +51,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!Number.isInteger(number) || (number as number) <= 0) {
+  if (number === undefined || !Number.isInteger(number) || number <= 0) {
     return NextResponse.json(
       { error: "`number` must be a positive integer." },
       { status: 400 },
@@ -65,7 +70,7 @@ export async function POST(request: Request) {
 
     const signals = isDemoMode()
       ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
-      : await collectSignals(repo, number as number, { rules: config.rules });
+      : await collectSignals(repo, number, { rules: config.rules });
 
     if (!signals) {
       return NextResponse.json(

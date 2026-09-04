@@ -10,6 +10,7 @@ import { priorityScore, rankQueue } from "@/lib/engines/priority-engine";
 import { estimateEffort, formatDuration } from "@/lib/engines/effort-estimator";
 import { loadConfig, isDemoMode } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
+import { guardRequest } from "@/lib/api-auth";
 import type { PRSignals } from "@/lib/signals/types";
 import type { TriagedPR, QueueSummary } from "@/lib/types";
 
@@ -34,6 +35,9 @@ import type { TriagedPR, QueueSummary } from "@/lib/types";
  * response alone, so it must never block on anything optional.
  */
 export async function GET(request: Request) {
+  const guard = guardRequest(request);
+  if (guard) return guard;
+
   const url = new URL(request.url);
   const repo = url.searchParams.get("repo");
   const limitParam = url.searchParams.get("limit");

@@ -72,6 +72,7 @@ export default function Home() {
       // The policy gate decides, not the swipe. A vetoed PR stays in the deck
       // and the card flips to show why — the system refusing its own
       // recommendation rather than quietly accepting it.
+      let gatePassed = true;
       try {
         const res = await fetch("/api/triage", {
           method: "POST",
@@ -82,17 +83,26 @@ export default function Home() {
             action: "fast-track",
           }),
         });
-        const data = await res.json();
-
-        if (res.ok && !data.accepted && data.verdict) {
-          setVeto({ pr, verdict: data.verdict });
-          return;
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.accepted && data.verdict) {
+            setVeto({ pr, verdict: data.verdict });
+            gatePassed = false;
+          }
+        } else {
+          // If the server returns 5xx (e.g. rate limit, auth failure), we must NOT
+          // silently wave the PR through. The gate is structural.
+          showToast("Failed to verify policy gate.");
+          gatePassed = false;
         }
       } catch {
-        // A gate that cannot be reached must not silently wave the PR
-        // through, but nor should a network blip block triage entirely. The
-        // decision is recorded locally and the queue moves on.
+        // Pure network failure (offline). Proceeding locally ensures the app
+        // is usable offline, but we still log it.
+        console.warn("Network offline; fast-tracking locally.");
       }
+
+      if (!gatePassed) return;
 
       addTriage(repo, pr.number, "fast-track", pr.risk.score);
       removePR(repo, pr.number);

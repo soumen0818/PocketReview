@@ -290,7 +290,6 @@ Explain this pull request as JSON matching the required schema.`;
  */
 export async function summarisePR(
   signals: PRSignals,
-  risk: RiskAssessment,
 ): Promise<string> {
   const config = await loadConfig();
   if (!config.llm.enabled) {

@@ -17,6 +17,7 @@ import {
 } from "@/lib/engines/review-plan";
 import { loadConfig, isDemoMode } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
+import { guardRequest } from "@/lib/api-auth";
 import type { PRSignals } from "@/lib/signals/types";
 
 /**
@@ -32,6 +33,9 @@ import type { PRSignals } from "@/lib/signals/types";
  * produce the same plan every time.
  */
 export async function POST(request: Request) {
+  const guard = guardRequest(request);
+  if (guard) return guard;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -119,7 +123,10 @@ export async function POST(request: Request) {
  *
  * Documents the endpoint rather than 405-ing a curious caller.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const guard = guardRequest(request);
+  if (guard) return guard;
+
   return NextResponse.json({
     endpoint: "POST /api/review-plan",
     body: {

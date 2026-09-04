@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import TinderCard from "react-tinder-card";
 import PRCard from "./PRCard";
 import type { TriagedPR } from "@/lib/types";
@@ -34,13 +34,14 @@ export default function SwipeDeck({
   );
   const [triggered, setTriggered] = useState(false);
 
-  if (triggerSwipe && !triggered && cardRef.current) {
+  useEffect(() => {
+    if (!triggerSwipe || triggered || !cardRef.current) return;
     setTriggered(true);
     cardRef.current.swipe(triggerSwipe.direction).then(() => {
       setTriggered(false);
       onTriggerConsumed?.();
     });
-  }
+  }, [triggerSwipe, triggered, onTriggerConsumed]);
 
   function handleSwipe(direction: string, pr: TriagedPR) {
     if (direction === "right") onSwipeRight(pr);
