@@ -7,7 +7,7 @@ import { assessRisk } from "@/lib/engines/risk-engine";
 import { evaluateFastTrack } from "@/lib/policy/gate";
 import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
-import { guardRequest } from "@/lib/api-auth";
+import { guardRequest } from "@/lib/rate-limit";
 import type { TriageAction } from "@/lib/types";
 
 const ACTIONS: TriageAction[] = ["fast-track", "needs-review", "defer"];
@@ -30,57 +30,33 @@ export async function POST(request: Request) {
   const guard = guardRequest(request, { maxPerMinute: 60 });
   if (guard) return guard;
 
-  let body: unknown;
   return withAuth(async (identity) => {
+    let body: unknown;
     try {
       body = await readJsonBody(request);
     } catch (error) {
       return toErrorResponse(error);
     }
 
-  const raw = (body ?? {}) as Record<string, unknown>;
-  const repo = typeof raw.repo === "string" ? raw.repo : undefined;
-  const number =
-    typeof raw.number === "number" ? raw.number : undefined;
-  const action =
-    typeof raw.action === "string" ? (raw.action as TriageAction) : undefined;
+    const raw = (body ?? {}) as Record<string, unknown>;
+    const repo = typeof raw.repo === "string" ? raw.repo : undefined;
+    const number = typeof raw.number === "number" ? raw.number : undefined;
+    const action =
+      typeof raw.action === "string" ? (raw.action as TriageAction) : undefined;
 
-  if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
-    return NextResponse.json(
-      { error: `Invalid repository "${repo}" — expected "owner/name".` },
-      { status: 400 },
-    );
-  }
-
-  if (number === undefined || !Number.isInteger(number) || number <= 0) {
-    return NextResponse.json(
-      { error: "`number` must be a positive integer." },
-      { status: 400 },
-    );
-  }
-
-  if (!action || !ACTIONS.includes(action)) {
-    return NextResponse.json(
-      { error: `\`action\` must be one of: ${ACTIONS.join(", ")}.` },
-      { status: 400 },
-    );
-  }
-
-  try {
-    const config = await loadConfig();
-
-    const signals = isDemoMode()
-      ? DEMO_SIGNALS.find((s) => s.repo === repo && s.number === number)
-      : await collectSignals(repo, number, { rules: config.rules });
-
-    if (!signals) {
+    // `isValidRepo` rather than a local regex: the permissive
+    // `/^[^/]+\/[^/]+$/` accepts newlines, null bytes, `../` and unbounded
+    // length, all of which reach the HTTP layer and the cache key. Every other
+    // route already validates to GitHub's real naming rules; this one must not
+    // be the exception.
+    if (!isValidRepo(repo)) {
       return NextResponse.json(
         { error: `Invalid repository "${repo}" — expected "owner/name".` },
         { status: 400 },
       );
     }
 
-    if (!Number.isInteger(number) || (number as number) <= 0) {
+    if (number === undefined || !Number.isInteger(number) || number <= 0) {
       return NextResponse.json(
         { error: "`number` must be a positive integer." },
         { status: 400 },

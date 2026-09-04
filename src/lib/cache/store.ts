@@ -34,13 +34,39 @@ const CACHE_DIR = join(process.cwd(), ".pocketreview", "cache");
  */
 let redis: Redis | null | undefined;
 
+/**
+ * Credentials, under either name.
+ *
+ * Adding Upstash through the Vercel Marketplace injects `KV_REST_API_URL` and
+ * `KV_REST_API_TOKEN` — names inherited from the sunset Vercel KV product.
+ * Connecting an Upstash database directly gives you `UPSTASH_REDIS_REST_*`.
+ *
+ * Reading only one pair meant the cache silently stayed disabled for whichever
+ * route the deployer took, with no error to notice: the app kept working, just
+ * slower on every cold start. Accepting both removes a configuration trap that
+ * produces no symptom.
+ */
+function redisCredentials(): { url: string; token: string } | null {
+  const url = (
+    process.env.UPSTASH_REDIS_REST_URL ??
+    process.env.KV_REST_API_URL ??
+    ""
+  ).trim();
+
+  const token = (
+    process.env.UPSTASH_REDIS_REST_TOKEN ??
+    process.env.KV_REST_API_TOKEN ??
+    ""
+  ).trim();
+
+  return url && token ? { url, token } : null;
+}
+
 function sharedCache(): Redis | null {
   if (redis !== undefined) return redis;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-
-  redis = url && token ? new Redis({ url, token }) : null;
+  const credentials = redisCredentials();
+  redis = credentials ? new Redis(credentials) : null;
   return redis;
 }
 

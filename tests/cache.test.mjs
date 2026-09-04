@@ -190,3 +190,58 @@ test("keys map to filesystem-safe filenames", () => {
 test("cleanup leaves no cache directory behind", async () => {
   await reset();
 });
+
+// ---------------------------------------------------------------------------
+// Redis credentials — two naming conventions in the wild
+// ---------------------------------------------------------------------------
+
+test("Redis is picked up under either env var naming", async () => {
+  const { cacheTiers, resetSharedCache } =
+    await import("../src/lib/cache/store.ts");
+
+  const KEYS = [
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "KV_REST_API_URL",
+    "KV_REST_API_TOKEN",
+  ];
+  const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  const clear = () => KEYS.forEach((k) => delete process.env[k]);
+
+  try {
+    clear();
+    resetSharedCache();
+    assert.equal(cacheTiers().redis, false, "no credentials means no Redis");
+
+    // What the Vercel Marketplace injects — names inherited from Vercel KV.
+    clear();
+    process.env.KV_REST_API_URL = "https://example.upstash.io";
+    process.env.KV_REST_API_TOKEN = "token";
+    resetSharedCache();
+    assert.equal(
+      cacheTiers().redis,
+      true,
+      "Marketplace KV_REST_API_* must enable the shared cache",
+    );
+
+    // What connecting Upstash directly gives you.
+    clear();
+    process.env.UPSTASH_REDIS_REST_URL = "https://example.upstash.io";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "token";
+    resetSharedCache();
+    assert.equal(cacheTiers().redis, true);
+
+    // Half-configured is not configured — a URL with no token would throw at
+    // the first read rather than degrade.
+    clear();
+    process.env.KV_REST_API_URL = "https://example.upstash.io";
+    resetSharedCache();
+    assert.equal(cacheTiers().redis, false);
+  } finally {
+    clear();
+    for (const [k, v] of Object.entries(saved)) {
+      if (v !== undefined) process.env[k] = v;
+    }
+    resetSharedCache();
+  }
+});

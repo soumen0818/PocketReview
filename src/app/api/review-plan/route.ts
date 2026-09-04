@@ -19,7 +19,7 @@ import {
 } from "@/lib/engines/review-plan";
 import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
-import { guardRequest } from "@/lib/api-auth";
+import { guardRequest } from "@/lib/rate-limit";
 import type { PRSignals } from "@/lib/signals/types";
 
 /**

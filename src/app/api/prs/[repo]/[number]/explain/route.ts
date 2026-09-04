@@ -8,7 +8,7 @@ import { explainRisk } from "@/lib/llm/explain";
 import { LLMUnavailable } from "@/lib/llm/client";
 import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
-import { guardRequest } from "@/lib/api-auth";
+import { guardRequest } from "@/lib/rate-limit";
 
 /**
  * GET /api/prs/:repo/:number/explain

@@ -34,14 +34,36 @@ export default function SwipeDeck({
   );
   const triggering = useRef(false);
 
+  /**
+   * Button-driven swipes.
+   *
+   * This has to be an effect, not a render-time branch. Calling
+   * `cardRef.current.swipe()` during render fires `onSwipe` synchronously,
+   * which calls back into the parent's `addTriage` — a `setState` on another
+   * component mid-render, which React reports as
+   * *"Cannot update a component while rendering a different component"*.
+   *
+   * A ref rather than state guards re-entry: state would schedule another
+   * render and belongs in the dependency array, which reruns the effect and
+   * can fire a second swipe. The guard needs to take effect immediately and
+   * not participate in reactivity.
+   */
   useEffect(() => {
-    if (!triggerSwipe || triggered || !cardRef.current) return;
-    setTriggered(true);
-    cardRef.current.swipe(triggerSwipe.direction).then(() => {
-      setTriggered(false);
-      onTriggerConsumed?.();
-    });
-  }, [triggerSwipe, triggered, onTriggerConsumed]);
+    if (!triggerSwipe || triggering.current || !cardRef.current) return;
+
+    triggering.current = true;
+
+    cardRef.current
+      .swipe(triggerSwipe.direction)
+      .catch(() => {
+        // The card may already have left the deck — not an error worth
+        // surfacing, but the trigger still has to be released.
+      })
+      .finally(() => {
+        triggering.current = false;
+        onTriggerConsumed?.();
+      });
+  }, [triggerSwipe, onTriggerConsumed]);
 
   function handleSwipe(direction: string, pr: TriagedPR) {
     if (direction === "right") onSwipeRight(pr);

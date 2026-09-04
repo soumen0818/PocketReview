@@ -13,7 +13,7 @@ import { estimateEffort } from "@/lib/engines/effort-estimator";
 import { capacityReport, type PlanCandidate } from "@/lib/engines/review-plan";
 import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
-import { guardRequest } from "@/lib/api-auth";
+import { guardRequest } from "@/lib/rate-limit";
 import type { PRSignals } from "@/lib/signals/types";
 
 /** Default assumed review capacity, in minutes, when none is given. */

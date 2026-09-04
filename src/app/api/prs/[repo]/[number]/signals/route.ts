@@ -6,7 +6,8 @@ import { collectSignals } from "@/lib/signals/collect";
 import { signalConfidence } from "@/lib/signals/types";
 import { assessRisk, baselineScore } from "@/lib/engines/risk-engine";
 import { loadConfig } from "@/lib/config";
-import { guardRequest } from "@/lib/api-auth";
+import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
+import { guardRequest } from "@/lib/rate-limit";
 
 /**
  * GET /api/prs/:repo/:number/signals

@@ -101,7 +101,7 @@ export default function Home() {
             action: "fast-track",
           }),
         });
-        
+
         if (res.ok) {
           const data = await res.json();
           if (!data.accepted && data.verdict) {

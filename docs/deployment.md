@@ -26,6 +26,13 @@ request uses that token — so they see exactly the pull requests GitHub would
 show them, and nothing else. There is no shared identity, no server-side token
 store, and no user table to breach. Sign out and the credential is gone.
 
+**Rate limiting is separate from authentication.** `guardRequest`
+(`src/lib/rate-limit.ts`) throttles by IP and makes no identity decision;
+`withAuth` (`src/lib/auth/guard.ts`) decides who the caller is. An earlier
+version also checked a shared `API_SECRET` header — that was removed, because a
+browser cannot send an `Authorization` header on a normal page load, so setting
+it would have 401'd every real user while leaving `curl` working.
+
 Two consequences worth knowing:
 
 - **A leftover `GITHUB_TOKEN` in your Vercel env vars is ignored** once
@@ -114,8 +121,23 @@ Without Redis the app keeps an in-memory cache per serverless instance, so a
 cold start refetches from GitHub. That is a few seconds, not a failure.
 
 To make it faster: **Vercel → Storage → Marketplace → Upstash for Redis**. The
-free tier (500K commands/month, 256MB) is ample. Vercel injects
-`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` automatically.
+free tier (500K commands/month, 256MB) is ample.
+
+**You do not add any environment variables by hand.** Vercel injects them when
+you connect the database — then **redeploy**, because Vercel does not apply new
+variables to an existing build.
+
+The variable names differ depending on how you connect, and the app accepts
+both:
+
+| How you connected  | Variables injected                                   |
+| ------------------ | ---------------------------------------------------- |
+| Vercel Marketplace | `KV_REST_API_URL`, `KV_REST_API_TOKEN`               |
+| Upstash directly   | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
+
+The Marketplace names are inherited from the sunset Vercel KV product. Reading
+only one pair would leave the cache silently disabled with no error — the app
+would keep working, just slower on every cold start — so both are supported.
 
 > Vercel KV was sunset in December 2024 and migrated to Upstash — if a tutorial
 > mentions `@vercel/kv`, it predates that change.
@@ -174,9 +196,14 @@ Then sign in through the browser and confirm you see **your own** PRs.
 
 Stated plainly, because a reviewer will ask:
 
-- **No rate limiting.** A signed-in user could hammer the API and exhaust
-  _their own_ GitHub rate limit. They cannot affect anyone else, because limits
-  are per-token — but there is no application-level throttle.
+- **Rate limiting is a backstop, not a quota.** Every API route is capped per
+  client IP (30/min by default; 10/min for explanations, which cost tokens;
+  60/min for triage, which is swipe-driven). The counter lives in process
+  memory, so on Vercel each function instance counts separately — a limit of
+  30/min is really "30/min per warm instance". That is enough to stop a runaway
+  client, not enough to be a precise quota. Moving the counter to Upstash would
+  make it exact; the per-user GitHub rate limit is the ceiling that actually
+  matters.
 - **No audit log.** Triage decisions live in browser memory and are lost on
   refresh. Nothing is recorded server-side.
 - **No team features.** Every user sees their own queue; there is no shared

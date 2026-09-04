@@ -3,7 +3,7 @@ import { withAuth } from "@/lib/auth/guard";
 import { toErrorResponse } from "@/lib/api-error";
 import { getPRDiff, isValidRepo } from "@/lib/signals/github";
 import { redactSecrets } from "@/lib/signals/diff";
-import { guardRequest } from "@/lib/api-auth";
+import { guardRequest } from "@/lib/rate-limit";
 
 /**
  * GET /api/prs/:repo/:number/diff
