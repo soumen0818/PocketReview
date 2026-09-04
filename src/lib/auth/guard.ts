@@ -74,10 +74,17 @@ export async function withAuth(
     );
   }
 
+  // Two different situations, and telling them apart matters to whoever is
+  // reading. With OAuth configured, signing in genuinely fixes it. Without it,
+  // there is nothing the visitor can do — telling them to sign in would send
+  // them to a page with no button on it.
   return NextResponse.json(
     {
-      error: "Sign in with GitHub to load your review queue.",
+      error: oauthEnabled()
+        ? "Sign in with GitHub to load your review queue."
+        : "This site is not accepting sign-ins yet. Please check back soon.",
       signedIn: false,
+      canSignIn: oauthEnabled(),
     },
     { status: 401 },
   );

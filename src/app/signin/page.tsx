@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Github, ShieldCheck, Eye, AlertTriangle } from "lucide-react";
+import { Github, ShieldCheck, Eye, AlertTriangle, Wrench } from "lucide-react";
 
 /** What went wrong, in the user's language rather than the protocol's. */
 const ERRORS: Record<string, string> = {
@@ -13,7 +13,7 @@ const ERRORS: Record<string, string> = {
   "exchange-failed":
     "GitHub could not complete the sign-in. Please try again in a moment.",
   "not-configured":
-    "Sign-in is not configured on this deployment. Contact whoever deployed it.",
+    "Sign-in is not available yet on this site. Please check back soon.",
 };
 
 function SignInContent() {
@@ -23,6 +23,7 @@ function SignInContent() {
   const [status, setStatus] = useState<{
     mode: "demo" | "oauth" | "local" | "unconfigured";
     ready: boolean;
+    setupHintsVisible: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -39,7 +40,13 @@ function SignInContent() {
         }
         setStatus(data);
       })
-      .catch(() => setStatus({ mode: "unconfigured", ready: false }));
+      .catch(() =>
+        setStatus({
+          mode: "unconfigured",
+          ready: false,
+          setupHintsVisible: false,
+        }),
+      );
   }, []);
 
   return (
@@ -75,43 +82,66 @@ function SignInContent() {
         </a>
       )}
 
-      {status?.mode === "unconfigured" && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-          <p className="text-[12px] font-medium text-gray-900">
-            This deployment has no credentials yet
+      {/*
+        Credentials are missing.
+
+        Who is looking decides what to say. On a deployed site this is a
+        visitor who followed a link — they need to know it is not their fault
+        and that nothing is broken on their end. Env-var names mean nothing to
+        them, and publishing deployment detail to the internet is worse than
+        useless.
+
+        In development it is the person who can actually fix it, so the setup
+        steps appear there.
+      */}
+      {status?.mode === "unconfigured" && !status.setupHintsVisible && (
+        <div className="rounded-xl border border-gray-200 bg-white px-5 py-6 text-center">
+          <Wrench size={22} className="mx-auto text-gray-400" />
+          <p className="mt-3 text-[14px] font-semibold text-gray-900">
+            Not quite ready yet
           </p>
-          <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-            Pick one of these and restart:
+          <p className="mt-1.5 text-[12px] leading-relaxed text-gray-600">
+            PocketReview is still being set up on this site. Sign-in will be
+            available shortly — please check back soon.
           </p>
-          <ul className="mt-2 space-y-2 text-[11px] leading-relaxed text-gray-500">
+          <p className="mt-3 text-[11px] text-gray-500">
+            Nothing is wrong on your end.
+          </p>
+        </div>
+      )}
+
+      {status?.mode === "unconfigured" && status.setupHintsVisible && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-[12px] font-semibold text-amber-900">
+            No credentials configured
+          </p>
+          <p className="mt-0.5 text-[10.5px] text-amber-700">
+            Only shown in development. Pick one and restart.
+          </p>
+          <ul className="mt-2.5 space-y-2 text-[11px] leading-relaxed text-amber-800">
             <li>
-              <span className="font-medium text-gray-700">Try it offline</span>{" "}
-              — set{" "}
-              <code className="rounded bg-gray-200 px-1">DEMO_MODE=1</code> to
+              <span className="font-semibold">Try it offline</span> — set{" "}
+              <code className="rounded bg-amber-100 px-1">DEMO_MODE=1</code> to
               run on sample pull requests with no credentials at all.
             </li>
             <li>
-              <span className="font-medium text-gray-700">
-                Your own PRs, locally
-              </span>{" "}
-              — set{" "}
-              <code className="rounded bg-gray-200 px-1">GITHUB_TOKEN</code> to
+              <span className="font-semibold">Your own PRs, locally</span> — set{" "}
+              <code className="rounded bg-amber-100 px-1">GITHUB_TOKEN</code> to
               a read-only personal access token.
             </li>
             <li>
-              <span className="font-medium text-gray-700">
-                Let others sign in
-              </span>{" "}
-              — set{" "}
-              <code className="rounded bg-gray-200 px-1">GITHUB_CLIENT_ID</code>
+              <span className="font-semibold">Let others sign in</span> — set{" "}
+              <code className="rounded bg-amber-100 px-1">
+                GITHUB_CLIENT_ID
+              </code>
               ,{" "}
-              <code className="rounded bg-gray-200 px-1">
+              <code className="rounded bg-amber-100 px-1">
                 GITHUB_CLIENT_SECRET
               </code>{" "}
               and{" "}
-              <code className="rounded bg-gray-200 px-1">SESSION_SECRET</code>.
+              <code className="rounded bg-amber-100 px-1">SESSION_SECRET</code>.
               See{" "}
-              <code className="rounded bg-gray-200 px-1">
+              <code className="rounded bg-amber-100 px-1">
                 docs/deployment.md
               </code>
               .

@@ -28,6 +28,17 @@ export async function GET() {
     login: viewer?.login ?? null,
     avatarUrl: viewer?.avatarUrl ?? null,
 
+    /**
+     * Whether the setup instructions are safe to show.
+     *
+     * When credentials are missing, the person who needs to hear about
+     * `GITHUB_CLIENT_ID` is whoever deployed the app — not a visitor who
+     * followed a link. Showing env-var names to the public is confusing at
+     * best and leaks deployment detail at worst, so the setup panel is gated
+     * on running outside production.
+     */
+    setupHintsVisible: process.env.NODE_ENV !== "production",
+
     // Retained so the sign-in page can explain what is missing.
     demoMode: mode === "demo",
     oauthEnabled: mode === "oauth",
