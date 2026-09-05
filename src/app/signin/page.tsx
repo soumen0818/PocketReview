@@ -1,8 +1,26 @@
-"use client";
+/**
+ * The sign-in screen.
+ *
+ * **This is a server component on purpose.**
+ *
+ * The mode this deployment runs in — demo, OAuth, local token, or not yet
+ * configured — is known on the server before a single byte of HTML is sent.
+ * Fetching it from the browser after paint meant the page rendered a blank
+ * placeholder, then flickered into whichever panel turned out to apply. On a
+ * refresh that flash is the first thing anyone sees, and "the site is still
+ * deciding what it is" is not the first impression this should make.
+ *
+ * Resolving `authMode()` here puts the correct, final screen in the initial
+ * HTML. There is no loading state because there is nothing to load, and no
+ * client-side redirect because the redirect happens before rendering.
+ */
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { redirect } from "next/navigation";
 import { Github, ShieldCheck, Eye, AlertTriangle, Wrench } from "lucide-react";
+import { authMode, getViewer } from "@/lib/auth/session";
+
+/** Static routing — the mode comes from the environment, never from a cache. */
+export const dynamic = "force-dynamic";
 
 /** What went wrong, in the user's language rather than the protocol's. */
 const ERRORS: Record<string, string> = {
@@ -16,38 +34,27 @@ const ERRORS: Record<string, string> = {
     "Sign-in is not available yet on this site. Please check back soon.",
 };
 
-function SignInContent() {
-  const params = useSearchParams();
-  const error = params.get("error");
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  const mode = authMode();
 
-  const [status, setStatus] = useState<{
-    mode: "demo" | "oauth" | "local" | "unconfigured";
-    ready: boolean;
-    setupHintsVisible: boolean;
-  } | null>(null);
+  // Nobody should be on this page when the app can already serve data. In demo
+  // and local mode there is no sign-in to perform, and an already-signed-in
+  // user arriving here followed a stale link. Redirecting on the server means
+  // they never see this page at all — previously they saw it flash first.
+  const viewer = mode === "oauth" ? await getViewer() : null;
+  if (mode === "demo" || mode === "local" || viewer !== null) {
+    redirect("/");
+  }
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => {
-        // Nobody should be on this page when the app can already serve data.
-        // Arriving here in demo or local mode means a stale link or a manual
-        // URL — send them where they meant to go rather than showing a
-        // sign-in flow that does not apply.
-        if (data.ready) {
-          window.location.href = "/";
-          return;
-        }
-        setStatus(data);
-      })
-      .catch(() =>
-        setStatus({
-          mode: "unconfigured",
-          ready: false,
-          setupHintsVisible: false,
-        }),
-      );
-  }, []);
+  // Env-var names are for whoever deployed the app, not for a visitor who
+  // followed a link. Publishing deployment detail to the internet is confusing
+  // at best, so the setup steps only appear outside production.
+  const setupHintsVisible = process.env.NODE_ENV !== "production";
 
   return (
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col justify-center px-6 py-10">
@@ -68,11 +75,7 @@ function SignInContent() {
         </div>
       )}
 
-      {/* Nothing is rendered until the mode is known — showing a sign-in
-          button that turns out not to apply is worse than a brief blank. */}
-      {status === null && <div className="h-12" />}
-
-      {status?.mode === "oauth" && (
+      {mode === "oauth" && (
         <a
           href="/api/auth/signin"
           className="flex w-full items-center justify-center gap-2 rounded-full bg-gray-900 px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-gray-800 active:bg-gray-700"
@@ -87,14 +90,9 @@ function SignInContent() {
 
         Who is looking decides what to say. On a deployed site this is a
         visitor who followed a link — they need to know it is not their fault
-        and that nothing is broken on their end. Env-var names mean nothing to
-        them, and publishing deployment detail to the internet is worse than
-        useless.
-
-        In development it is the person who can actually fix it, so the setup
-        steps appear there.
+        and that nothing is broken on their end.
       */}
-      {status?.mode === "unconfigured" && !status.setupHintsVisible && (
+      {mode === "unconfigured" && !setupHintsVisible && (
         <div className="rounded-xl border border-gray-200 bg-white px-5 py-6 text-center">
           <Wrench size={22} className="mx-auto text-gray-400" />
           <p className="mt-3 text-[14px] font-semibold text-gray-900">
@@ -110,7 +108,7 @@ function SignInContent() {
         </div>
       )}
 
-      {status?.mode === "unconfigured" && status.setupHintsVisible && (
+      {mode === "unconfigured" && setupHintsVisible && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-[12px] font-semibold text-amber-900">
             No credentials configured
@@ -152,33 +150,31 @@ function SignInContent() {
 
       {/* What the user is agreeing to, before they agree to it. Burying this
           would be the wrong trade: `repo` is a broad scope and they deserve to
-          know why it is being asked for. Only relevant when there is actually
-          something to sign in to. */}
-      <div
-        className="mt-7 space-y-3 border-t border-gray-100 pt-6"
-        hidden={status?.mode !== "oauth"}
-      >
-        <Row
-          icon={<Eye size={13} />}
-          title="Read-only, always"
-          body="PocketReview never merges, approves, comments on, or changes anything. Every GitHub call it makes is a read."
-        />
-        <Row
-          icon={<ShieldCheck size={13} />}
-          title="Your token stays on the server"
-          body="It is held in an encrypted session cookie your browser cannot read, and is never sent to the page. Sign out and it is gone."
-        />
-        <Row
-          icon={<Github size={13} />}
-          title="Why it asks for repo access"
-          body="GitHub has no read-only repository scope for OAuth apps, so `repo` is the narrowest option that can see your private pull requests. You can revoke it any time in GitHub settings."
-        />
-      </div>
+          know why it is being asked for. */}
+      {mode === "oauth" && (
+        <>
+          <div className="mt-7 space-y-3 border-t border-gray-100 pt-6">
+            <Row
+              icon={<Eye size={13} />}
+              title="Read-only, always"
+              body="PocketReview never merges, approves, comments on, or changes anything. Every GitHub call it makes is a read."
+            />
+            <Row
+              icon={<ShieldCheck size={13} />}
+              title="Your token stays on the server"
+              body="It is held in an encrypted session cookie your browser cannot read, and is never sent to the page. Sign out and it is gone."
+            />
+            <Row
+              icon={<Github size={13} />}
+              title="Why it asks for repo access"
+              body="GitHub has no read-only repository scope for OAuth apps, so `repo` is the narrowest option that can see your private pull requests. You can revoke it any time in GitHub settings."
+            />
+          </div>
 
-      {status?.mode === "oauth" && (
-        <p className="mt-7 text-center text-[10.5px] text-gray-400">
-          You see only the pull requests your own GitHub account can see.
-        </p>
+          <p className="mt-7 text-center text-[10.5px] text-gray-400">
+            You see only the pull requests your own GitHub account can see.
+          </p>
+        </>
       )}
     </main>
   );
@@ -203,13 +199,5 @@ function Row({
         </p>
       </div>
     </div>
-  );
-}
-
-export default function SignInPage() {
-  return (
-    <Suspense fallback={null}>
-      <SignInContent />
-    </Suspense>
   );
 }

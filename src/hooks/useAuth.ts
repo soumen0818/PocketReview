@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 
 /** How the deployment authenticates. Mirrors `AuthMode` on the server. */
 export type AuthMode = "demo" | "oauth" | "local" | "unconfigured";
@@ -16,45 +16,18 @@ export interface AuthState {
   oauthEnabled: boolean;
 }
 
-const UNKNOWN: AuthState = {
-  mode: "unconfigured",
-  ready: false,
-  signedIn: false,
-  login: null,
-  avatarUrl: null,
-  demoMode: false,
-  oauthEnabled: false,
-};
-
 /**
- * Who is signed in.
+ * Sign out.
  *
- * `loading` matters: rendering the sign-in prompt before this resolves would
- * flash a sign-in screen at an already-authenticated user on every load.
+ * All that remains of the old `useAuth` hook. The state it used to fetch is now
+ * resolved on the server and passed down as a prop — asking the browser to
+ * re-derive what the server already knew is what produced the loading flash on
+ * every page load. Signing out is a genuine user action, so it stays a client
+ * concern.
  */
-export function useAuth() {
-  const [auth, setAuth] = useState<AuthState>(UNKNOWN);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/me");
-      setAuth(res.ok ? await res.json() : UNKNOWN);
-    } catch {
-      setAuth(UNKNOWN);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const signOut = useCallback(async () => {
+export function useSignOut() {
+  return useCallback(async () => {
     await fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
     window.location.href = "/signin";
   }, []);
-
-  return { ...auth, loading, refresh, signOut };
 }
