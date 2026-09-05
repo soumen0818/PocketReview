@@ -20,8 +20,10 @@ import QueueSummaryBar from "@/components/QueueSummaryBar";
 import StaleBanner from "@/components/StaleBanner";
 import DimensionBreakdown from "@/components/risk/DimensionBreakdown";
 import VetoCard from "@/components/risk/VetoCard";
+import { RepoScopeBadge } from "@/components/RepoScopeInput";
 import { useSignOut, type AuthState } from "@/hooks/useAuth";
 import { useSwipeHistory } from "@/hooks/useSwipeHistory";
+import { useRepoScope } from "@/hooks/useRepoScope";
 import { usePRs } from "@/hooks/usePRs";
 import { useExplanation } from "@/hooks/useExplanation";
 import { useReviewers } from "@/hooks/useReviewers";
@@ -39,9 +41,19 @@ export default function TriageApp({ auth }: { auth: AuthState }) {
     clearHistory,
     loaded: historyLoaded,
   } = useSwipeHistory();
+  const {
+    repo: scopedRepo,
+    setRepo: setScopedRepo,
+    clearRepo: clearScopedRepo,
+    loaded: scopeLoaded,
+  } = useRepoScope();
+
+  // Both gates must be open before fetching: history so triaged PRs stay
+  // triaged, scope so the first request is for the right queue.
   const { prs, summary, stale, loading, error, refetch, removePR } = usePRs(
     hasReviewed,
-    historyLoaded,
+    historyLoaded && scopeLoaded,
+    scopedRepo,
   );
   const {
     explanation,
@@ -230,6 +242,13 @@ export default function TriageApp({ auth }: { auth: AuthState }) {
         onSignOut={signOut}
       />
 
+      {/* Outside the branching below, so it is present in every state — the
+          error state included, where a mistyped repository is the likeliest
+          cause and clearing the scope is the fix. */}
+      {scopedRepo && (
+        <RepoScopeBadge repo={scopedRepo} onClear={clearScopedRepo} />
+      )}
+
       <main className="flex flex-col flex-1 pb-4 min-h-0 overflow-hidden">
         {loading && prs.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3">
@@ -256,6 +275,10 @@ export default function TriageApp({ auth }: { auth: AuthState }) {
               clearHistory();
               refetch();
             }}
+            scopedRepo={scopedRepo}
+            // Demo mode serves fixtures and never queries GitHub, so scoping
+            // to a repository there would silently do nothing.
+            onScopeRepo={auth.demoMode ? undefined : setScopedRepo}
           />
         ) : (
           <>

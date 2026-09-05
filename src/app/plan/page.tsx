@@ -7,6 +7,7 @@ import BudgetPicker from "@/components/plan/BudgetPicker";
 import CapacityPanel from "@/components/plan/CapacityPanel";
 import ReviewPlanView from "@/components/plan/ReviewPlan";
 import { useReviewPlan } from "@/hooks/useReviewPlan";
+import { useRepoScope } from "@/hooks/useRepoScope";
 
 /** Opening budget: a typical gap between meetings. */
 const DEFAULT_BUDGET = 30;
@@ -20,7 +21,16 @@ const DEFAULT_BUDGET = 30;
  */
 export default function PlanPage() {
   const [budget, setBudget] = useState(DEFAULT_BUDGET);
-  const { plan, capacity, loading, error, refetch } = useReviewPlan(budget);
+
+  // The plan must cover the same queue the deck is showing. Planning over
+  // every repository while the deck is scoped to one would recommend PRs the
+  // reviewer cannot see from where they are.
+  const { repo: scopedRepo, loaded: scopeLoaded } = useRepoScope();
+  const { plan, capacity, loading, error, refetch } = useReviewPlan(
+    budget,
+    scopedRepo,
+    scopeLoaded,
+  );
 
   return (
     <main className="mx-auto flex h-[100dvh] w-full max-w-md flex-col bg-gray-50">
@@ -37,8 +47,13 @@ export default function PlanPage() {
             <h1 className="text-xl font-bold leading-none tracking-tight">
               Review plan
             </h1>
-            <p className="mt-0.5 text-[11px] text-gray-400">
-              What to do with the time you have
+            {/* Naming the scope here matters: the capacity deficit is the
+                headline number, and a figure covering one repository must not
+                be read as the whole queue's. */}
+            <p className="mt-0.5 truncate text-[11px] text-gray-400">
+              {scopedRepo
+                ? `Scoped to ${scopedRepo}`
+                : "What to do with the time you have"}
             </p>
           </div>
         </div>
