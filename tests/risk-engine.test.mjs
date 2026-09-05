@@ -643,3 +643,108 @@ test("an unremarkable PR still explains itself", () => {
     "there must always be something to say",
   );
 });
+
+/**
+ * Floors fire on auth, payments and database — not on every high-weight path.
+ *
+ * Found in the wild: a Dependabot bump of `actions/checkout` from v6 to v7,
+ * four one-line edits under `.github/workflows/`, scored 55/100 and displayed
+ * *"Critical-path change with no test coverage"*. The floor was keying off
+ * `signals.criticalPaths`, which is every path at category weight ≥ 0.7 and so
+ * includes `infra` (0.75) and `api` (0.70). A workflow file has no tests by
+ * definition, so the untested floor fired on its own.
+ *
+ * Two things were wrong: the score, and a stated reason naming three domains
+ * the PR never touched. The floors now use the same explicit category set the
+ * policy gate blocks on, so one definition of "critical path" holds across the
+ * whole system.
+ */
+test("a CI workflow bump does not hit the critical-path floor", () => {
+  const workflow = (path) =>
+    makeFile({
+      path,
+      category: "infra",
+      categoryWeight: 0.75,
+      additions: 1,
+      deletions: 1,
+    });
+
+  const signals = makeSignals({
+    files: [
+      workflow(".github/workflows/ci.yml"),
+      workflow(".github/workflows/codeql.yml"),
+      workflow(".github/workflows/dependency-review.yml"),
+      workflow(".github/workflows/secret-scan.yml"),
+    ],
+    // Still reported for explanation text — the signal itself is unchanged.
+    criticalPaths: [
+      ".github/workflows/ci.yml",
+      ".github/workflows/codeql.yml",
+      ".github/workflows/dependency-review.yml",
+      ".github/workflows/secret-scan.yml",
+    ],
+    productionLinesAdded: 4,
+    hasNoTests: true,
+    testRatio: 0,
+    authorIsBot: true,
+  });
+
+  const risk = assessRisk(signals);
+
+  assert.equal(risk.floor, null, "no floor should fire on infra-only changes");
+  assert.ok(
+    risk.score < 50,
+    `a four-line workflow bump must not read as high risk, got ${risk.score}`,
+  );
+
+  // The reason that made the card self-contradictory.
+  assert.ok(
+    !risk.topReasons.some((r) => /critical.path/i.test(r)),
+    `must not claim a critical path: ${JSON.stringify(risk.topReasons)}`,
+  );
+});
+
+test("auth still floors, so narrowing the rule did not disarm it", () => {
+  // The guard on the fix above: the floor must still do its actual job.
+  const signals = makeSignals({
+    files: [
+      makeFile({
+        path: "src/auth/session.ts",
+        category: "auth",
+        categoryWeight: 1,
+        additions: 3,
+        deletions: 1,
+      }),
+    ],
+    criticalPaths: ["src/auth/session.ts"],
+    productionLinesAdded: 3,
+    hasNoTests: true,
+    testRatio: 0,
+  });
+
+  const risk = assessRisk(signals);
+  assert.equal(risk.floor, 55);
+  assert.ok(risk.score >= 55);
+});
+
+test("api paths report as critical for explanation but do not floor", () => {
+  // `api` sits at 0.70 — inside the old threshold, outside the new rule.
+  const signals = makeSignals({
+    files: [
+      makeFile({
+        path: "src/app/api/health/route.ts",
+        category: "api",
+        categoryWeight: 0.7,
+        additions: 2,
+        deletions: 0,
+      }),
+    ],
+    criticalPaths: ["src/app/api/health/route.ts"],
+    productionLinesAdded: 2,
+    hasNoTests: true,
+    testRatio: 0,
+  });
+
+  const risk = assessRisk(signals);
+  assert.equal(risk.floor, null, "an API route change must not force a floor");
+});

@@ -20,7 +20,8 @@ import { priorityScore, rankQueue } from "@/lib/engines/priority-engine";
 import { estimateEffort, formatDuration } from "@/lib/engines/effort-estimator";
 import { loadConfig } from "@/lib/config";
 import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
-import { guardRequest } from "@/lib/api-auth";
+import { guardRequest } from "@/lib/rate-limit";
+import { stripPatch } from "@/lib/signals/types";
 import type { PRSignals } from "@/lib/signals/types";
 import type { TriagedPR, QueueSummary } from "@/lib/types";
 

@@ -333,9 +333,7 @@ Explain this pull request as JSON matching the required schema.`;
  * score beside this sentence, and handing the model a number it does not need
  * is an invitation to restate it — wrongly.
  */
-export async function summarisePR(
-  signals: PRSignals,
-): Promise<string> {
+export async function summarisePR(signals: PRSignals): Promise<string> {
   const config = await loadConfig();
   if (!config.llm.enabled) {
     throw new LLMUnavailable("disabled", "Explanation layer disabled.");

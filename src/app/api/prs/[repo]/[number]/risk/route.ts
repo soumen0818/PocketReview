@@ -5,7 +5,8 @@ import { isValidRepo } from "@/lib/signals/github";
 import { collectSignals } from "@/lib/signals/collect";
 import { assessRisk } from "@/lib/engines/risk-engine";
 import { loadConfig } from "@/lib/config";
-import { guardRequest } from "@/lib/api-auth";
+import { DEMO_SIGNALS } from "@/lib/demo/fixtures";
+import { guardRequest } from "@/lib/rate-limit";
 
 /**
  * GET /api/prs/:repo/:number/risk

@@ -138,7 +138,7 @@ export default function ExplainScreen({
                 <ol className="space-y-1.5">
                   {explanation.whereToLookFirst.map((item, i) => (
                     <li key={i} className="flex gap-2">
-                      <span className="shrink-0 font-semibold text-gray-300">
+                      <span className="shrink-0 font-semibold text-gray-500">
                         {i + 1}
                       </span>
                       <span>{item}</span>
@@ -153,7 +153,7 @@ export default function ExplainScreen({
                 <ul className="space-y-1.5">
                   {explanation.questionsToAsk.map((q, i) => (
                     <li key={i} className="flex gap-2">
-                      <span className="shrink-0 text-gray-300">·</span>
+                      <span className="shrink-0 text-gray-500">·</span>
                       <span>{q}</span>
                     </li>
                   ))}

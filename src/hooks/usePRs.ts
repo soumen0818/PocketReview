@@ -36,6 +36,11 @@ export function usePRs(
    * worse than waiting a tick for localStorage.
    */
   historyLoaded = true,
+  /**
+   * Scope the queue to one repository, or null for the default: every PR
+   * awaiting *your* review, across every repository.
+   */
+  repo: string | null = null,
 ) {
   const [prs, setPRs] = useState<TriagedPR[]>([]);
   const [summary, setSummary] = useState<QueueSummary>(EMPTY_SUMMARY);
@@ -50,17 +55,27 @@ export function usePRs(
     hasReviewedRef.current = hasReviewed;
   }, [hasReviewed]);
 
+  /** Identifies the newest request, so stale responses can be discarded. */
+  const requestId = useRef(0);
+
   const fetchPRs = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/prs");
+      // No `repo` means the default cross-repository queue — everything
+      // awaiting this user's review, wherever it lives.
+      const query = repo ? `?repo=${encodeURIComponent(repo)}` : "";
+      const res = await fetch(`/api/prs${query}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Request failed (${res.status})`);
       }
 
       const data: QueueResponse = await res.json();
+      // Changing scope mid-flight must not leave the deck showing the previous
+      // repository's PRs.
+      if (id !== requestId.current) return;
 
       // Already-triaged PRs are filtered client-side so a refresh does not
       // resurrect decisions made moments ago.
@@ -72,11 +87,12 @@ export function usePRs(
       setSummary(data.summary ?? EMPTY_SUMMARY);
       setStale(data.stale ?? null);
     } catch (err) {
+      if (id !== requestId.current) return;
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, []);
+  }, [repo]);
 
   useEffect(() => {
     if (historyLoaded) fetchPRs();

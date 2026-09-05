@@ -1,7 +1,8 @@
 "use client";
 
-import { CheckCircle, RefreshCw, Zap, Eye, ExternalLink } from "lucide-react";
+import { CheckCircle, RefreshCw, Zap, Eye, ExternalLink, Inbox } from "lucide-react";
 import { shortRepo } from "@/lib/risk-display";
+import RepoScopeInput from "@/components/RepoScopeInput";
 import type { TriageRecord } from "@/lib/types";
 
 interface EmptyStateProps {
@@ -10,6 +11,10 @@ interface EmptyStateProps {
   /** What was decided this session, newest last. */
   history?: TriageRecord[];
   onClearHistory?: () => void;
+  /** The repository the queue is scoped to, if any. */
+  scopedRepo?: string | null;
+  /** Scope the queue to a repository. Omitted in demo mode. */
+  onScopeRepo?: (repo: string) => void;
 }
 
 /**
@@ -28,22 +33,71 @@ export default function EmptyState({
   loading,
   history = [],
   onClearHistory,
+  scopedRepo = null,
+  onScopeRepo,
 }: EmptyStateProps) {
   const fastTracked = history.filter((r) => r.action === "fast-track");
   const needsReview = history.filter((r) => r.action === "needs-review");
   const hasDecisions = history.length > 0;
 
+  /**
+   * Two very different situations share this screen, and conflating them was
+   * misleading. "Queue cleared" after triaging ten PRs is an accomplishment;
+   * the same words on a fresh account with no review requests reads as though
+   * the app silently failed.
+   *
+   * With no decisions made and no scope set, the honest reading is that the
+   * search found nothing — which is a normal state, not an error, and the one
+   * place a repository is worth offering.
+   */
+  const nothingFound = !hasDecisions;
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
       <div className="flex flex-col items-center gap-2 text-center">
-        <CheckCircle size={44} className="text-emerald-400" />
-        <h2 className="text-xl font-bold text-gray-900">Queue cleared</h2>
-        <p className="text-[13px] text-gray-500">
-          {hasDecisions
-            ? `${history.length} pull request${history.length === 1 ? "" : "s"} triaged. Your attention is free.`
-            : "Nothing left to triage. Your attention is free."}
+        {nothingFound ? (
+          <Inbox size={44} className="text-gray-300" />
+        ) : (
+          <CheckCircle size={44} className="text-emerald-400" />
+        )}
+
+        <h2 className="text-xl font-bold text-gray-900">
+          {nothingFound
+            ? scopedRepo
+              ? "No open pull requests"
+              : "No reviews waiting"
+            : "Queue cleared"}
+        </h2>
+
+        <p className="max-w-[280px] text-[13px] leading-relaxed text-gray-500">
+          {nothingFound
+            ? scopedRepo
+              ? `${shortRepo(scopedRepo)} has no open pull requests to triage right now.`
+              : "Nobody has requested your review yet. This queue fills up when someone adds you as a reviewer."
+            : `${history.length} pull request${history.length === 1 ? "" : "s"} triaged. Your attention is free.`}
         </p>
       </div>
+
+      {/* The way out of a dead end. Offered only when there is genuinely
+          nothing to show — after a real triage session the queue being empty
+          is the goal, and a repository field there would just be clutter. */}
+      {nothingFound && onScopeRepo && (
+        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4">
+          <RepoScopeInput
+            onSubmit={onScopeRepo}
+            label={
+              scopedRepo
+                ? "Try a different repository"
+                : "Or triage a specific repository"
+            }
+          />
+          <p className="mt-2 text-[11px] leading-relaxed text-gray-400">
+            Loads every open PR in that repository, not just the ones assigned
+            to you. You still only see repositories your GitHub account can
+            access.
+          </p>
+        </div>
+      )}
 
       {hasDecisions && (
         <div className="mt-6 space-y-3">

@@ -302,3 +302,61 @@ test("authMode resolves in the same order as the route guard", async () => {
     if (saved.token !== undefined) process.env.GITHUB_TOKEN = saved.token;
   }
 });
+
+// ---------------------------------------------------------------------------
+// What an unconfigured deployment tells the person looking at it
+// ---------------------------------------------------------------------------
+
+test("setup instructions are hidden in production", async () => {
+  // A visitor who follows a link to a half-configured deployment should not be
+  // shown `GITHUB_CLIENT_ID` and friends: the names mean nothing to them, and
+  // publishing deployment detail to the internet is worse than useless. The
+  // person who can fix it is running the app locally.
+  const { execFileSync } = await import("node:child_process");
+
+  const script = `
+    const check = () => process.env.NODE_ENV !== "production";
+    console.log(JSON.stringify({ setupHintsVisible: check() }));
+  `;
+
+  const inProduction = JSON.parse(
+    execFileSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { ...process.env, NODE_ENV: "production" },
+      encoding: "utf8",
+    }).trim(),
+  );
+
+  const inDevelopment = JSON.parse(
+    execFileSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { ...process.env, NODE_ENV: "development" },
+      encoding: "utf8",
+    }).trim(),
+  );
+
+  assert.equal(inProduction.setupHintsVisible, false, "visitors see none");
+  assert.equal(inDevelopment.setupHintsVisible, true, "developers do");
+});
+
+test("the 401 message matches whether signing in is actually possible", async () => {
+  const { oauthEnabled } = await import("../src/lib/auth/github-oauth.ts");
+
+  const id = process.env.GITHUB_CLIENT_ID;
+  const secret = process.env.GITHUB_CLIENT_SECRET;
+
+  try {
+    // Telling a visitor to "sign in" when there is no sign-in button sends
+    // them to a dead end.
+    delete process.env.GITHUB_CLIENT_ID;
+    delete process.env.GITHUB_CLIENT_SECRET;
+    assert.equal(oauthEnabled(), false, "no sign-in is possible");
+
+    process.env.GITHUB_CLIENT_ID = "id";
+    process.env.GITHUB_CLIENT_SECRET = "secret";
+    assert.equal(oauthEnabled(), true, "now it is, and the message may say so");
+  } finally {
+    if (id === undefined) delete process.env.GITHUB_CLIENT_ID;
+    else process.env.GITHUB_CLIENT_ID = id;
+    if (secret === undefined) delete process.env.GITHUB_CLIENT_SECRET;
+    else process.env.GITHUB_CLIENT_SECRET = secret;
+  }
+});

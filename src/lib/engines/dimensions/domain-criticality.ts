@@ -97,9 +97,17 @@ export const domainCriticality: Dimension = {
 
       // Make the size-independence explicit in the reasoning, because it is
       // the property a reader is most likely to doubt.
+      //
+      // Worded around "sensitive areas" rather than "critical paths" on
+      // purpose. This dimension weighs everything at or above 0.7, which
+      // includes infra and api — but "critical path" now has a narrower,
+      // load-bearing meaning elsewhere (the risk floors and the policy gate's
+      // never-fast-track set, both auth/payments/database only). Reusing the
+      // phrase here made a CI workflow bump claim a critical-path change on
+      // the card while the gate disagreed.
       if (criticalLines <= 10) {
         reasons.push(
-          "Small diffs in critical paths still require careful review",
+          "Small diffs in sensitive areas still require careful review",
         );
       }
     } else {
