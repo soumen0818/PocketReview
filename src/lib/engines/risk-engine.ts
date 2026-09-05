@@ -146,19 +146,51 @@ interface FloorRule {
   applies(signals: PRSignals): boolean;
 }
 
+/**
+ * Categories a floor may fire on.
+ *
+ * **Not the same thing as `signals.criticalPaths`,** and the difference is the
+ * point. That list is every path at category weight ≥ 0.7, which also catches
+ * `infra` (0.75) and `api` (0.70) — useful for explanation text, far too broad
+ * to force a score to 55.
+ *
+ * Using it here produced a real misfire: a Dependabot bump of
+ * `actions/checkout` from v6 to v7 — four one-line edits under
+ * `.github/workflows/` — floored to 55 and rendered the reason *"Critical-path
+ * change with no test coverage"*. A workflow file has no tests by definition,
+ * so the untested floor fired automatically, and the label named auth, payments
+ * and database, none of which the PR went near.
+ *
+ * These three categories match `ALWAYS_BLOCKED` in the policy gate exactly. One
+ * definition of "critical path" across the system, so a floor label and a
+ * fast-track veto can never disagree about what the phrase means.
+ */
+const FLOOR_CRITICAL_CATEGORIES: ReadonlySet<string> = new Set([
+  "auth",
+  "payments",
+  "database",
+]);
+
+/** Paths that justify a floor — the narrow reading, not the weight threshold. */
+function floorCriticalPaths(signals: PRSignals): string[] {
+  return signals.files
+    .filter((f) => !f.isGenerated && FLOOR_CRITICAL_CATEGORIES.has(f.category))
+    .map((f) => f.path);
+}
+
 export const FLOOR_RULES: FloorRule[] = [
   {
     id: "critical-path-untested",
     label: "Critical-path change with no test coverage",
     floor: 55,
     applies: (s) =>
-      s.criticalPaths.length > 0 && (s.hasNoTests || s.testsRemoved),
+      floorCriticalPaths(s).length > 0 && (s.hasNoTests || s.testsRemoved),
   },
   {
     id: "critical-path",
     label: "Touches a critical path (auth, payments or database)",
     floor: 40,
-    applies: (s) => s.criticalPaths.length > 0,
+    applies: (s) => floorCriticalPaths(s).length > 0,
   },
   {
     id: "tests-removed",
