@@ -9,8 +9,10 @@ interface SwipeDeckProps {
   prs: TriagedPR[];
   onSwipeLeft: (pr: TriagedPR) => void;
   onSwipeRight: (pr: TriagedPR) => void;
+  onSwipeDown?: (pr: TriagedPR) => void;
+  onSwipeUp?: (pr: TriagedPR) => void;
   onShowBreakdown: (pr: TriagedPR) => void;
-  triggerSwipe?: { direction: "left" | "right" } | null;
+  triggerSwipe?: { direction: "left" | "right" | "down" } | null;
   onTriggerConsumed?: () => void;
 }
 
@@ -24,6 +26,8 @@ export default function SwipeDeck({
   prs,
   onSwipeLeft,
   onSwipeRight,
+  onSwipeDown,
+  onSwipeUp,
   onShowBreakdown,
   triggerSwipe,
   onTriggerConsumed,
@@ -68,6 +72,8 @@ export default function SwipeDeck({
   function handleSwipe(direction: string, pr: TriagedPR) {
     if (direction === "right") onSwipeRight(pr);
     else if (direction === "left") onSwipeLeft(pr);
+    else if (direction === "down" && onSwipeDown) onSwipeDown(pr);
+    else if (direction === "up" && onSwipeUp) onSwipeUp(pr);
   }
 
   return (
@@ -99,9 +105,9 @@ export default function SwipeDeck({
                   <TinderCard
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     ref={cardRef as any}
-                    className="h-full"
+                    className="h-full [&_svg]:pointer-events-none"
                     onSwipe={(dir) => handleSwipe(dir, pr)}
-                    preventSwipe={["up", "down"]}
+                    preventSwipe={[]}
                     swipeRequirementType="position"
                     swipeThreshold={80}
                   >
@@ -135,34 +141,42 @@ function SwipeOverlayCard({
   onShowBreakdown: () => void;
 }) {
   const startX = useRef<number | null>(null);
-  const [dragDelta, setDragDelta] = useState(0);
+  const startY = useRef<number | null>(null);
+  const [dragDeltaX, setDragDeltaX] = useState(0);
+  const [dragDeltaY, setDragDeltaY] = useState(0);
 
   return (
     <div
       className="relative h-full"
       onPointerDown={(e) => {
-        // Don't track drag when clicking interactive elements
         if ((e.target as HTMLElement).closest("button, a, input")) return;
         startX.current = e.clientX;
-        setDragDelta(0);
+        startY.current = e.clientY;
+        setDragDeltaX(0);
+        setDragDeltaY(0);
       }}
       onPointerMove={(e) => {
-        if (e.buttons === 1 && startX.current !== null) {
-          setDragDelta(e.clientX - startX.current);
+        if (e.buttons === 1 && startX.current !== null && startY.current !== null) {
+          setDragDeltaX(e.clientX - startX.current);
+          setDragDeltaY(e.clientY - startY.current);
         }
       }}
       onPointerUp={() => {
         startX.current = null;
-        setDragDelta(0);
+        startY.current = null;
+        setDragDeltaX(0);
+        setDragDeltaY(0);
       }}
       onPointerLeave={() => {
         startX.current = null;
-        setDragDelta(0);
+        startY.current = null;
+        setDragDeltaX(0);
+        setDragDeltaY(0);
       }}
     >
       <PRCard pr={pr} onShowBreakdown={onShowBreakdown} />
 
-      {dragDelta > 30 && (
+      {dragDeltaX > 30 && Math.abs(dragDeltaX) > Math.abs(dragDeltaY) && (
         <div className="absolute inset-0 rounded-2xl border-4 border-green-400 flex items-center justify-center bg-green-50/50 pointer-events-none">
           <span className="text-green-500 font-black text-3xl -rotate-12 tracking-widest text-center leading-tight">
             FAST
@@ -172,12 +186,28 @@ function SwipeOverlayCard({
         </div>
       )}
 
-      {dragDelta < -30 && (
+      {dragDeltaX < -30 && Math.abs(dragDeltaX) > Math.abs(dragDeltaY) && (
         <div className="absolute inset-0 rounded-2xl border-4 border-amber-400 flex items-center justify-center bg-amber-50/50 pointer-events-none">
           <span className="text-amber-500 font-black text-3xl rotate-12 tracking-widest text-center leading-tight">
             NEEDS
             <br />
             REVIEW
+          </span>
+        </div>
+      )}
+
+      {dragDeltaY > 30 && Math.abs(dragDeltaY) > Math.abs(dragDeltaX) && (
+        <div className="absolute inset-0 rounded-2xl border-4 border-gray-400 flex items-center justify-center bg-gray-50/50 pointer-events-none">
+          <span className="text-gray-500 font-black text-3xl tracking-widest text-center leading-tight">
+            DEFER
+          </span>
+        </div>
+      )}
+
+      {dragDeltaY < -30 && Math.abs(dragDeltaY) > Math.abs(dragDeltaX) && (
+        <div className="absolute inset-0 rounded-2xl border-4 border-indigo-400 flex items-center justify-center bg-indigo-50/50 pointer-events-none">
+          <span className="text-indigo-500 font-black text-3xl tracking-widest text-center leading-tight">
+            EXPLAIN
           </span>
         </div>
       )}

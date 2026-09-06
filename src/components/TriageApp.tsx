@@ -102,6 +102,21 @@ export default function TriageApp({ auth }: { auth: AuthState }) {
     [addTriage, removePR],
   );
 
+  // Down: defer. Pushes the PR down the priority queue without removing it from GitHub.
+  const handleDefer = useCallback(
+    (pr: TriagedPR) => {
+      addTriage(
+        pr.repository.nameWithOwner,
+        pr.number,
+        "defer",
+        pr.risk.score,
+      );
+      removePR(pr.repository.nameWithOwner, pr.number);
+      showToast(`#${pr.number} deferred`);
+    },
+    [addTriage, removePR],
+  );
+
   // Right: fast-track. This records a triage decision only — it never approves
   // or merges anything on GitHub. A human still reviews the PR; it simply goes
   // into the quick lane rather than being opened first.
@@ -159,6 +174,15 @@ export default function TriageApp({ auth }: { auth: AuthState }) {
     fetchExplanation(topPR.repository.nameWithOwner, topPR.number);
     fetchReviewers(topPR.repository.nameWithOwner, topPR.number);
   }, [topPR, fetchExplanation, fetchReviewers]);
+
+  const handleSwipeExplain = useCallback(
+    (pr: TriagedPR) => {
+      setExplainPR(pr);
+      fetchExplanation(pr.repository.nameWithOwner, pr.number);
+      fetchReviewers(pr.repository.nameWithOwner, pr.number);
+    },
+    [fetchExplanation, fetchReviewers]
+  );
 
   const triggerNeedsReview = useCallback(() => {
     if (!topPR) return;
@@ -290,6 +314,8 @@ export default function TriageApp({ auth }: { auth: AuthState }) {
                 prs={prs}
                 onSwipeLeft={handleNeedsReview}
                 onSwipeRight={handleFastTrack}
+                onSwipeDown={handleDefer}
+                onSwipeUp={handleSwipeExplain}
                 onShowBreakdown={setBreakdownPR}
                 triggerSwipe={triggerSwipe}
                 onTriggerConsumed={() => setTriggerSwipe(null)}

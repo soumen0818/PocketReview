@@ -124,7 +124,7 @@ export default function PRCard({ pr, onShowBreakdown, style }: PRCardProps) {
       {onShowBreakdown && (
         <button
           onClick={onShowBreakdown}
-          className="shrink-0 flex items-center justify-between w-full px-4 py-2.5 border-t border-gray-100 text-[12px] text-gray-500 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          className="pressable shrink-0 flex items-center justify-between w-full px-4 py-2.5 border-t border-gray-100 text-[12px] text-gray-500 hover:bg-gray-50 active:bg-gray-100 transition-colors"
         >
           <span>
             See the full breakdown
